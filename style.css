@@ -19,3 +19,10 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px/1.
 .green{color:var(--ok)}
 .material-icon{width:20px;height:20px;border:1px solid #243043;border-radius:4px;background-size:cover;background-position:center;display:inline-block}
 
+.hidden{display:none}
+#tutorialModal{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:2000}
+#tutorialModal .content{background:#0b0f14cc;border:1px solid #1f2a3c;padding:20px;border-radius:12px;text-align:center;max-width:320px}
+#tutorialModal img{max-width:100%;height:auto;margin-bottom:12px}
+#tutorialModal button{background:linear-gradient(180deg,#172233,#0e1523);color:var(--fg);border:1px solid #273349;border-radius:10px;padding:6px 10px;cursor:pointer}
+.highlight{box-shadow:0 0 0 3px var(--accent)}
+
