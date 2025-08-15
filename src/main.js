@@ -5,6 +5,7 @@ import { makeWind, buildUpdrafts } from './wind.js';
 import { Plane, BASE_PLANES, BASE_MATERIALS } from './plane.js';
 import { Quat } from './quat.js';
 import { playRandomTrack, stopTrack, setTrackInfo } from './audio/background.js';
+import { audioReady, effects } from './audio/loader.js';
 
 /**************** Camera & draw ****************/
 let canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');
@@ -177,7 +178,7 @@ function checkBadges(){
 }
 function makeParams(){const shape=BASE_PLANES[ui.plane.value]||BASE_PLANES.dart;const mat=BASE_MATERIALS[ui.material.value]||BASE_MATERIALS.printer;return{...shape,mass:shape.mass*mat.mass,wingArea:shape.wingArea*mat.wingArea,CD0:shape.CD0*mat.CD0,color:mat.color,texture:mat.texture}}
 function updateMaterialIcon(){const m=BASE_MATERIALS[ui.material.value];if(m)ui.materialIcon.style.backgroundImage=`url(${m.texture})`}
-function rebuild(){stopTrack();rng=new RNG(ui.seed.value||'seed');const L=ui.level.value;let s; if(L==='house')s=buildHouse(rng); if(L==='office')s=buildOffice(rng); if(L==='mall')s=buildMall(rng); if(L==='stadium')s=buildStadium(rng); if(L==='google')s=buildGoogleCity(rng); scene=s;windField=makeWind(L,rng.seed);updrafts=buildUpdrafts(L,rng,scene.bounds);plane=new Plane(makeParams());plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value);ui.levelDetail.textContent=`edges:${scene.edges.length} boxes:${scene.boxes.length} updrafts:${updrafts.length}`;sessionTime=0;updateMaterialIcon();setTimeout(()=>playRandomTrack(),300)}
+function rebuild(){stopTrack();rng=new RNG(ui.seed.value||'seed');const L=ui.level.value;let s; if(L==='house')s=buildHouse(rng); if(L==='office')s=buildOffice(rng); if(L==='mall')s=buildMall(rng); if(L==='stadium')s=buildStadium(rng); if(L==='google')s=buildGoogleCity(rng); scene=s;windField=makeWind(L,rng.seed);updrafts=buildUpdrafts(L,rng,scene.bounds);plane=new Plane(makeParams());plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value);ui.levelDetail.textContent=`edges:${scene.edges.length} boxes:${scene.boxes.length} updrafts:${updrafts.length}`;sessionTime=0;updateMaterialIcon();audioReady.then(()=>setTimeout(()=>playRandomTrack(),300))}
 main
 refreshPlaneList();
 refreshMaterialList();
@@ -282,6 +283,7 @@ function throwPlane(){
   targetsHitStep=0;
   flightLog=[];wasThrown=false;
   replaying=false;ghostPlane=null;
+  audioReady.then(()=>{const s=effects.swoosh; if(s){s.currentTime=0; s.play();}});
   focusCanvas();
 }
 function collide(){ if(ui.ghost.checked) return false; if(plane.pos.y<scene.bounds.min.y-0.2) return true; for(const b of scene.boxes){ if(pointInBox(plane.pos,b)) return true } return false }
