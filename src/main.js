@@ -3,6 +3,7 @@ import { RNG, DEG, lerp, TAU, clamp } from './utils.js';
 import { buildHouse, buildOffice, buildMall, buildStadium, buildGoogleCity } from './levels.js';
 import { makeWind, buildUpdrafts } from './wind.js';
 import { Plane, BASE_PLANES, BASE_MATERIALS } from './plane.js';
+import { Quat } from './quat.js';
 import { playRandomTrack, stopTrack, setTrackInfo } from './audio/background.js';
 
 /**************** Camera & draw ****************/
@@ -61,7 +62,11 @@ let ui={
   bestDist:document.getElementById("bestDist"),
   bestTime:document.getElementById("bestTime"),
   bestTargets:document.getElementById("bestTargets"),
-  badgeList:document.getElementById("badgeList")
+  badgeList:document.getElementById("badgeList"),
+  replay:document.getElementById("replayBtn"),
+  showGhost:document.getElementById("showGhost"),
+  share:document.getElementById("shareBtn"),
+  saveVideo:document.getElementById("saveVideoBtn")
 };
 setTrackInfo('');
 ui.throw.addEventListener('input',()=>ui.throwVal.textContent=(+ui.throw.value).toFixed(1)+' m/s');ui.throw.addEventListener('change',()=>focusCanvas());
@@ -81,6 +86,9 @@ let metrics={distance:0,time:0,targets:0};
 let lastPos=null;
 let targetsHitStep=0;
 let announcedUnlocks={};
+let flightLog=[],wasThrown=false;
+let replayLog=[],replayParams=null,replayIndex=0,replaying=false,ghostPlane=null,ghostVisible=false,replayFinish=null;
+let recorder=null,recordedChunks=[];
 
 function isUnlocked(key){
   const req=BASE_PLANES[key].requires;
@@ -178,7 +186,21 @@ updateAchievementsPanel();
 ui.plane.value='dart';
 ui.material.value='printer';
 updateMaterialIcon();
-ui.regen.addEventListener('click',()=>{rebuild();focusCanvas();});ui.level.addEventListener('change',()=>{rebuild();focusCanvas();});ui.plane.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});ui.material.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});ui.control.addEventListener('change',()=>focusCanvas());ui.windPreset.addEventListener('change',()=>focusCanvas());ui.assist.addEventListener('change',()=>focusCanvas());ui.ghost.addEventListener('change',()=>focusCanvas());ui.launch.addEventListener('click',()=>{if(!tutorialActive){throwPlane();focusCanvas();}});ui.pause.addEventListener('click',()=>{if(!tutorialActive){togglePause();focusCanvas();}});
+ghostVisible=ui.showGhost.checked;
+ui.regen.addEventListener('click',()=>{rebuild();focusCanvas();});
+ui.level.addEventListener('change',()=>{rebuild();focusCanvas();});
+ui.plane.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});
+ui.material.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});
+ui.control.addEventListener('change',()=>focusCanvas());
+ui.windPreset.addEventListener('change',()=>focusCanvas());
+ui.assist.addEventListener('change',()=>focusCanvas());
+ui.ghost.addEventListener('change',()=>focusCanvas());
+ui.launch.addEventListener('click',()=>{if(!tutorialActive){throwPlane();focusCanvas();}});
+ui.pause.addEventListener('click',()=>{if(!tutorialActive){togglePause();focusCanvas();}});
+ui.replay.addEventListener('click',()=>{if(!tutorialActive){startReplay();focusCanvas();}});
+ui.showGhost.addEventListener('change',()=>{ghostVisible=ui.showGhost.checked;focusCanvas();});
+ui.share.addEventListener('click',()=>{shareFlight();});
+ui.saveVideo.addEventListener('click',()=>{saveVideo();});
 
 /**************** Input: Keyboard & Gamepad ****************/
 const keys={}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.code==='Space'){e.preventDefault();if(!tutorialActive)throwPlane()} if(e.key.toLowerCase()==='p'){if(!tutorialActive)togglePause()}}); addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
@@ -258,6 +280,8 @@ function throwPlane(){
   metrics={distance:0,time:0,targets:0};
   lastPos=plane.pos.clone();
   targetsHitStep=0;
+  flightLog=[];wasThrown=false;
+  replaying=false;ghostPlane=null;
   focusCanvas();
 }
 function collide(){ if(ui.ghost.checked) return false; if(plane.pos.y<scene.bounds.min.y-0.2) return true; for(const b of scene.boxes){ if(pointInBox(plane.pos,b)) return true } return false }
@@ -280,6 +304,37 @@ function applyUpdrafts(pos,t){
 }
 
 function nearestUpdraft(pos,t){let best=null,dist=Infinity;for(const u of updrafts){if(u.vanish && t<u.hideUntil) continue;const dx=u.pos.x-pos.x,dz=u.pos.z-pos.z;const d=Math.sqrt(dx*dx+dz*dz);if(d<dist){dist=d;best=Math.atan2(dx,dz);}}return best==null?0:best;}
+
+/**************** Replay & Share ****************/
+function startReplay(cb){
+  let saved;
+  if(replayLog.length){
+    saved={log:replayLog,params:replayParams||plane.params};
+  }else{
+    saved=JSON.parse(localStorage.getItem('lastFlightLog')||'{}');
+  }
+  const log=saved.log||[];
+  if(!log.length)return;
+  ghostPlane=new Plane(saved.params||makeParams());
+  ghostVisible=ui.showGhost.checked;
+  replayLog=log;
+  replayParams=saved.params||replayParams;
+  replayIndex=0;
+  replaying=true;
+  replayFinish=cb||null;
+}
+function shareFlight(){
+  const url=location.href;
+  if(navigator.share){navigator.share({title:'Paper Plane Flight',text:'Check out my flight!',url});}
+  else{const tweet=`https://twitter.com/intent/tweet?text=${encodeURIComponent('Check out my paper plane flight! '+url)}`;window.open(tweet,'_blank');}
+}
+function startRecording(){
+  const stream=canvas.captureStream(60);recorder=new MediaRecorder(stream,{mimeType:'video/webm'});recordedChunks=[];
+  recorder.ondataavailable=e=>{if(e.data.size>0)recordedChunks.push(e.data);};
+  recorder.onstop=()=>{const blob=new Blob(recordedChunks,{type:'video/webm'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='flight.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+  recorder.start();
+}
+function saveVideo(){startRecording();startReplay(()=>{if(recorder)recorder.stop();});}
 
 /**************** Toast ****************/
 let toastDiv=null;function ensureToast(){if(!toastDiv){toastDiv=document.createElement('div');toastDiv.style.position='fixed';toastDiv.style.left='50%';toastDiv.style.top='14px';toastDiv.style.transform='translateX(-50%)';toastDiv.style.padding='8px 12px';toastDiv.style.background='#0b0f14cc';toastDiv.style.border='1px solid #1f2a3c';toastDiv.style.borderRadius='10px';toastDiv.style.pointerEvents='none';toastDiv.style.transition='opacity .2s';document.body.appendChild(toastDiv)}}
@@ -315,7 +370,65 @@ if(tutorialActive) startTutorial();
 
 /**************** Loop ****************/
 let last=performance.now(),acc=0;rebuild();setTimeout(()=>throwPlane(),400);
- function frame(now){const dt=(now-last)/1000;last=now;if(!paused){acc+=dt;const step=1/120;while(acc>=step){tGlobal+=step;const inp=getInput();     const wind=(pos)=>{const base=windField(pos,tGlobal,windOverride());const up=applyUpdrafts(pos,tGlobal);return Vec3.add(base,up)};plane.step(step,wind,inp,ui.assist.checked);if(collide())plane.thrown=false;     const b=plane.basis();const follow=Vec3.add(plane.pos,Vec3.mul(b.forward,-3.5));follow.add(Vec3.mul(b.up,1.2));camera.pos=Vec3.add(Vec3.mul(camera.pos,0.9),Vec3.mul(follow,0.1));camera.target=Vec3.add(Vec3.mul(camera.target,0.85),Vec3.mul(plane.pos,0.15));addScore(step);acc-=step}}  ctx.clearRect(0,0,canvas.width,canvas.height);drawEdges(scene.edges,'#3fb7ff');drawUpdrafts(updrafts,now);if(wireframeMode)drawEdges(plane.worldEdges(),plane.params.color||'#86efac');else drawFaces(plane.worldFaces(),plane.params.color||'#86efac');const windVec=plane._windVec||new Vec3(0,0,0);const wDir=Math.atan2(windVec.x,windVec.z);const upDir=nearestUpdraft(plane.pos,tGlobal);drawCompass(wDir,upDir);ui.spd.textContent=(plane._speed||0).toFixed(1);ui.aoa.textContent=((plane._alpha||0)/DEG).toFixed(1);ui.alt.textContent=(plane.pos.y).toFixed(1);ui.wnd.textContent=(plane._wind||0).toFixed(1);ui.windDir.textContent=((wDir*180/Math.PI+360)%360).toFixed(0);fpsCounter.tick(now);requestAnimationFrame(frame)}
+ function frame(now){
+  const dt=(now-last)/1000;last=now;
+  if(!paused){
+    acc+=dt;const step=1/120;
+    while(acc>=step){
+      tGlobal+=step;
+      const inp=getInput();
+      const wind=(pos)=>{const base=windField(pos,tGlobal,windOverride());const up=applyUpdrafts(pos,tGlobal);return Vec3.add(base,up)};
+      plane.step(step,wind,inp,ui.assist.checked);
+      if(collide())plane.thrown=false;
+      if(plane.thrown){
+        flightLog.push({pos:{x:plane.pos.x,y:plane.pos.y,z:plane.pos.z},q:{x:plane.q.x,y:plane.q.y,z:plane.q.z,w:plane.q.w}});
+        wasThrown=true;
+      }else if(wasThrown){
+        const save={params:plane.params,log:flightLog};
+        localStorage.setItem('lastFlightLog',JSON.stringify(save));
+        replayLog=save.log.slice();
+        replayParams=save.params;
+        wasThrown=false;
+      }
+      const b=plane.basis();
+      const follow=Vec3.add(plane.pos,Vec3.mul(b.forward,-3.5));
+      follow.add(Vec3.mul(b.up,1.2));
+      camera.pos=Vec3.add(Vec3.mul(camera.pos,0.9),Vec3.mul(follow,0.1));
+      camera.target=Vec3.add(Vec3.mul(camera.target,0.85),Vec3.mul(plane.pos,0.15));
+      addScore(step);acc-=step;
+    }
+  }
+  if(replaying&&ghostPlane){
+    if(replayIndex<replayLog.length){
+      const e=replayLog[replayIndex++];
+      ghostPlane.pos.set(e.pos.x,e.pos.y,e.pos.z);
+      ghostPlane.q=new Quat(e.q.x,e.q.y,e.q.z,e.q.w);
+    }else{
+      replaying=false;
+      if(replayFinish){const cb=replayFinish;replayFinish=null;cb();}
+    }
+  }
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawEdges(scene.edges,'#3fb7ff');
+  drawUpdrafts(updrafts,now);
+  if(wireframeMode)drawEdges(plane.worldEdges(),plane.params.color||'#86efac');
+  else drawFaces(plane.worldFaces(),plane.params.color||'#86efac');
+  if(ghostVisible&&ghostPlane){
+    if(wireframeMode)drawEdges(ghostPlane.worldEdges(),'rgba(255,255,255,0.5)');
+    else drawFaces(ghostPlane.worldFaces(),'rgba(255,255,255,0.5)');
+  }
+  const windVec=plane._windVec||new Vec3(0,0,0);
+  const wDir=Math.atan2(windVec.x,windVec.z);
+  const upDir=nearestUpdraft(plane.pos,tGlobal);
+  drawCompass(wDir,upDir);
+  ui.spd.textContent=(plane._speed||0).toFixed(1);
+  ui.aoa.textContent=((plane._alpha||0)/DEG).toFixed(1);
+  ui.alt.textContent=(plane.pos.y).toFixed(1);
+  ui.wnd.textContent=(plane._wind||0).toFixed(1);
+  ui.windDir.textContent=((wDir*180/Math.PI+360)%360).toFixed(0);
+  fpsCounter.tick(now);
+  requestAnimationFrame(frame);
+ }
 function windOverride(){const p=ui.windPreset.value;let o=null;if(p==='calm')o={speed:0.05,gust:0.05,vertical:0.0,swirl:0.05};if(p==='indoor')o={speed:0.25,gust:0.2,vertical:0.05,swirl:0.15};if(p==='drafty')o={speed:0.6,gust:0.5,vertical:0.2,swirl:0.25};if(p==='gusty')o={speed:1.6,gust:1.8,vertical:0.15,swirl:0.7};if(p==='outdoor')o={speed:1.1,gust:1.2,vertical:0.05,swirl:0.5};return o}
 const fpsCounter={buf:new Array(20).fill(0),i:0,tick(t){this.buf[this.i++%this.buf.length]=t;const a=this.buf[(this.i-1+this.buf.length)%this.buf.length];const b=this.buf[this.i%this.buf.length];if(b!==0){const dt=(a-b)/this.buf.length;const fps=(dt>0)?1000/dt:0;document.getElementById('fps').textContent=fps.toFixed(0)}}};
 requestAnimationFrame(frame);
