@@ -27,22 +27,150 @@ function drawCompass(wDir, upDir){
 
 /**************** World state ****************/
 let rng=new RNG('blink-zero');
-let ui={ level:document.getElementById('level'), plane:document.getElementById('plane'), material:document.getElementById('material'), materialIcon:document.getElementById('materialIcon'), levelDetail:document.getElementById('levelDetail'), seed:document.getElementById('seed'), regen:document.getElementById('regen'), throw:document.getElementById('throw'), throwVal:document.getElementById('throwVal'), windPreset:document.getElementById('windPreset'), assist:document.getElementById('assist'), ghost:document.getElementById('ghost'), launch:document.getElementById('launch'), pause:document.getElementById('pauseBtn'), fps:document.getElementById('fps'), spd:document.getElementById('spd'), aoa:document.getElementById('aoa'), alt:document.getElementById('alt'), wnd:document.getElementById('wind'), windDir:document.getElementById('windDir'), pts:document.getElementById('points'), session:document.getElementById('session'), padState:document.getElementById('padState'), control:document.getElementById('controlMode'), unlockInfo:document.getElementById('unlockInfo') };
+let ui={
+  level:document.getElementById("level"),
+  plane:document.getElementById("plane"),
+  material:document.getElementById("material"),
+  materialIcon:document.getElementById("materialIcon"),
+  levelDetail:document.getElementById("levelDetail"),
+  seed:document.getElementById("seed"),
+  regen:document.getElementById("regen"),
+  throw:document.getElementById("throw"),
+  throwVal:document.getElementById("throwVal"),
+  windPreset:document.getElementById("windPreset"),
+  assist:document.getElementById("assist"),
+  ghost:document.getElementById("ghost"),
+  launch:document.getElementById("launch"),
+  pause:document.getElementById("pauseBtn"),
+  fps:document.getElementById("fps"),
+  spd:document.getElementById("spd"),
+  aoa:document.getElementById("aoa"),
+  alt:document.getElementById("alt"),
+  wnd:document.getElementById("wind"),
+  windDir:document.getElementById("windDir"),
+  pts:document.getElementById("points"),
+  session:document.getElementById("session"),
+  padState:document.getElementById("padState"),
+  control:document.getElementById("controlMode"),
+  unlockInfo:document.getElementById("unlockInfo"),
+  bestDist:document.getElementById("bestDist"),
+  bestTime:document.getElementById("bestTime"),
+  bestTargets:document.getElementById("bestTargets"),
+  badgeList:document.getElementById("badgeList")
+};
 setTrackInfo('');
 ui.throw.addEventListener('input',()=>ui.throwVal.textContent=(+ui.throw.value).toFixed(1)+' m/s');ui.throw.addEventListener('change',()=>focusCanvas());
-let scene={edges:[],boxes:[],spawn:new Vec3(0,1.5,0),bounds:{min:new Vec3(-10,0,-10),max:new Vec3(10,5,10)}};let updrafts=[];let plane;let windField;let paused=false,tGlobal=0;let score=0, sessionTime=0;const SAVEKEY='paperplane_unlocks_v2';
+let scene={edges:[],boxes:[],spawn:new Vec3(0,1.5,0),bounds:{min:new Vec3(-10,0,-10),max:new Vec3(10,5,10)}};
+let updrafts=[];
+let plane;
+let windField;
+let paused=false,tGlobal=0;
+let score=0, sessionTime=0;
+const SAVEKEY='paperplane_unlocks_v2';
+const STATSKEY='paperplane_stats_v1';
 let unlocks = JSON.parse(localStorage.getItem(SAVEKEY)||'{}');
-function isUnlocked(key){const req=BASE_PLANES[key].requires;return !req || (unlocks.points||0)>=req}
-function refreshPlaneList(){ui.plane.innerHTML='';for(const key of Object.keys(BASE_PLANES)){const p=BASE_PLANES[key];const opt=document.createElement('option');opt.value=key;opt.textContent=p.name+(p.requires?` — ${isUnlocked(key)?'Unlocked':`Locked (${p.requires} pts)`}`:'');if(p.requires && !isUnlocked(key)){opt.disabled=true;opt.className='locked'}ui.plane.appendChild(opt)}ui.unlockInfo.textContent=`Total pts: ${unlocks.points||0}`}
-function refreshMaterialList(){ui.material.innerHTML='';for(const key of Object.keys(BASE_MATERIALS)){const m=BASE_MATERIALS[key];const opt=document.createElement('option');opt.value=key;opt.textContent=m.name;ui.material.appendChild(opt)}}
+let stats = JSON.parse(localStorage.getItem(STATSKEY)||'{}');
+let metrics={distance:0,time:0,targets:0};
+let lastPos=null;
+let targetsHitStep=0;
+let announcedUnlocks={};
+
+function isUnlocked(key){
+  const req=BASE_PLANES[key].requires;
+  if(!req) return true;
+  const pts=unlocks.points||0;
+  const dist=stats.bestDistance||0;
+  const time=stats.bestTime||0;
+  const targ=stats.bestTargets||0;
+  if(typeof req==='number') return pts>=req;
+  if(req.points && pts<req.points) return false;
+  if(req.distance && dist<req.distance) return false;
+  if(req.time && time<req.time) return false;
+  if(req.targets && targ<req.targets) return false;
+  return true;
+}
+function refreshPlaneList(){
+  ui.plane.innerHTML='';
+  for(const key of Object.keys(BASE_PLANES)){
+    const p=BASE_PLANES[key];
+    const opt=document.createElement('option');
+    opt.value=key;
+    let reqText='';
+    if(p.requires){
+      const parts=[];
+      if(typeof p.requires==='number') parts.push(`${p.requires} pts`);
+      else{
+        if(p.requires.points) parts.push(`${p.requires.points} pts`);
+        if(p.requires.distance) parts.push(`${p.requires.distance} m`);
+        if(p.requires.time) parts.push(`${p.requires.time} s`);
+        if(p.requires.targets) parts.push(`${p.requires.targets} targets`);
+      }
+      reqText=parts.join(', ');
+    }
+    opt.textContent=p.name+(p.requires?` — ${isUnlocked(key)?'Unlocked':`Locked (${reqText})`}`:'');
+    if(p.requires && !isUnlocked(key)){
+      opt.disabled=true;
+      opt.className='locked';
+    }
+    ui.plane.appendChild(opt);
+  }
+  ui.unlockInfo.textContent=`Pts:${unlocks.points||0} Dist:${Math.floor(stats.bestDistance||0)} Time:${Math.floor(stats.bestTime||0)} Tgts:${stats.bestTargets||0}`;
+}
+function refreshMaterialList(){
+  ui.material.innerHTML='';
+  for(const key of Object.keys(BASE_MATERIALS)){
+    const m=BASE_MATERIALS[key];
+    const opt=document.createElement('option');
+    opt.value=key;
+    opt.textContent=m.name;
+    ui.material.appendChild(opt);
+  }
+}
+
+function updateAchievementsPanel(){
+  ui.bestDist.textContent=Math.floor(stats.bestDistance||0);
+  ui.bestTime.textContent=Math.floor(stats.bestTime||0);
+  ui.bestTargets.textContent=stats.bestTargets||0;
+  ui.badgeList.innerHTML='';
+  (stats.badges||[]).forEach(b=>{
+    const li=document.createElement('li');
+    li.textContent=b;
+    ui.badgeList.appendChild(li);
+  });
+}
+
+const BADGES=[
+  {name:'Long Haul',test:s=>s.bestDistance>=500},
+  {name:'Marathon',test:s=>s.bestTime>=60},
+  {name:'Sharpshooter',test:s=>s.bestTargets>=5}
+];
+
+function checkBadges(){
+  stats.badges=stats.badges||[];
+  let changed=false;
+  for(const b of BADGES){
+    if(!stats.badges.includes(b.name) && b.test(stats)){
+      stats.badges.push(b.name);
+      toast(`Badge unlocked: ${b.name}`);
+      changed=true;
+    }
+  }
+  if(changed){
+    localStorage.setItem(STATSKEY,JSON.stringify(stats));
+    updateAchievementsPanel();
+  }
+}
 function makeParams(){const shape=BASE_PLANES[ui.plane.value]||BASE_PLANES.dart;const mat=BASE_MATERIALS[ui.material.value]||BASE_MATERIALS.printer;return{...shape,mass:shape.mass*mat.mass,wingArea:shape.wingArea*mat.wingArea,CD0:shape.CD0*mat.CD0,color:mat.color,texture:mat.texture}}
 function updateMaterialIcon(){const m=BASE_MATERIALS[ui.material.value];if(m)ui.materialIcon.style.backgroundImage=`url(${m.texture})`}
-codex/implement-ground-effect-lift-scaling
-function rebuild(){rng=new RNG(ui.seed.value||'seed');const L=ui.level.value;let s; if(L==='house')s=buildHouse(rng); if(L==='office')s=buildOffice(rng); if(L==='mall')s=buildMall(rng); if(L==='stadium')s=buildStadium(rng); if(L==='google')s=buildGoogleCity(rng); scene=s;windField=makeWind(L,rng.seed);updrafts=buildUpdrafts(L,rng,scene.bounds,scene.vents);plane=new Plane(makeParams());plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value);ui.levelDetail.textContent=`edges:${scene.edges.length} boxes:${scene.boxes.length} updrafts:${updrafts.length}`;sessionTime=0;updateMaterialIcon()}
-
 function rebuild(){stopTrack();rng=new RNG(ui.seed.value||'seed');const L=ui.level.value;let s; if(L==='house')s=buildHouse(rng); if(L==='office')s=buildOffice(rng); if(L==='mall')s=buildMall(rng); if(L==='stadium')s=buildStadium(rng); if(L==='google')s=buildGoogleCity(rng); scene=s;windField=makeWind(L,rng.seed);updrafts=buildUpdrafts(L,rng,scene.bounds);plane=new Plane(makeParams());plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value);ui.levelDetail.textContent=`edges:${scene.edges.length} boxes:${scene.boxes.length} updrafts:${updrafts.length}`;sessionTime=0;updateMaterialIcon();setTimeout(()=>playRandomTrack(),300)}
 main
-refreshPlaneList();refreshMaterialList();ui.plane.value='dart';ui.material.value='printer';updateMaterialIcon();
+refreshPlaneList();
+refreshMaterialList();
+checkBadges();
+updateAchievementsPanel();
+ui.plane.value='dart';
+ui.material.value='printer';
+updateMaterialIcon();
 ui.regen.addEventListener('click',()=>{rebuild();focusCanvas();});ui.level.addEventListener('change',()=>{rebuild();focusCanvas();});ui.plane.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});ui.material.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});ui.control.addEventListener('change',()=>focusCanvas());ui.windPreset.addEventListener('change',()=>focusCanvas());ui.assist.addEventListener('change',()=>focusCanvas());ui.ghost.addEventListener('change',()=>focusCanvas());ui.launch.addEventListener('click',()=>{throwPlane();focusCanvas();});ui.pause.addEventListener('click',()=>{togglePause();focusCanvas();});
 
 /**************** Input: Keyboard & Gamepad ****************/
@@ -53,15 +181,88 @@ function getInput(){const mode=ui.control.value;let fromPad=readGamepad(); if(mo
 let prevPadStart=false, prevPadA=false;
 
 /**************** Scoring & Unlocks ****************/
-function addScore(dt){if(!plane.thrown)return; score+=dt; sessionTime+=dt; const total=(unlocks.points||0)+dt;  let changed=false; if(!isUnlocked('snub') && total>=BASE_PLANES.snub.requires){unlocks.points=(unlocks.points||0); changed=true; toast(`Unlocked: Snub Nose!`)} if(!isUnlocked('fighter') && total>=BASE_PLANES.fighter.requires){changed=true; toast(`Unlocked: Fighter Jet!`)}  saveTimer+=dt; if(saveTimer>5){unlocks.points=(unlocks.points||0)+Math.floor(scoreSavedDelta); localStorage.setItem(SAVEKEY,JSON.stringify(unlocks)); scoreSavedDelta=0; saveTimer=0; refreshPlaneList(); ui.unlockInfo.classList.add('green'); setTimeout(()=>ui.unlockInfo.classList.remove('green'),600)} scoreSavedDelta+=dt; ui.pts.textContent=Math.floor((unlocks.points||0)+scoreSavedDelta); ui.session.textContent=Math.floor(sessionTime);}
-let saveTimer=0, scoreSavedDelta=0; function finalizeScore(){ if(scoreSavedDelta>0){unlocks.points=(unlocks.points||0)+Math.floor(scoreSavedDelta); localStorage.setItem(SAVEKEY,JSON.stringify(unlocks)); scoreSavedDelta=0; refreshPlaneList(); }}
+function addScore(dt){
+  if(!plane.thrown) return;
+  score+=dt;
+  sessionTime+=dt;
+  metrics.time+=dt;
+  if(lastPos){
+    metrics.distance+=Vec3.sub(plane.pos,lastPos).len();
+  }
+  lastPos=plane.pos.clone();
+  if(targetsHitStep>0){
+    metrics.targets+=targetsHitStep;
+    targetsHitStep=0;
+  }
+  let statsDirty=false;
+  if(metrics.distance>(stats.bestDistance||0)){stats.bestDistance=Math.floor(metrics.distance);statsDirty=true;}
+  if(metrics.time>(stats.bestTime||0)){stats.bestTime=Math.floor(metrics.time);statsDirty=true;}
+  if(metrics.targets>(stats.bestTargets||0)){stats.bestTargets=metrics.targets;statsDirty=true;}
+  if(statsDirty){
+    localStorage.setItem(STATSKEY,JSON.stringify(stats));
+    updateAchievementsPanel();
+    checkBadges();
+  }
+  saveTimer+=dt;
+  if(saveTimer>5){
+    unlocks.points=(unlocks.points||0)+Math.floor(scoreSavedDelta);
+    localStorage.setItem(SAVEKEY,JSON.stringify(unlocks));
+    scoreSavedDelta=0;
+    saveTimer=0;
+    refreshPlaneList();
+    ui.unlockInfo.classList.add('green');
+    setTimeout(()=>ui.unlockInfo.classList.remove('green'),600);
+  }
+  scoreSavedDelta+=dt;
+  ui.pts.textContent=Math.floor((unlocks.points||0)+scoreSavedDelta);
+  ui.session.textContent=Math.floor(sessionTime);
+  for(const key of Object.keys(BASE_PLANES)){
+    const p=BASE_PLANES[key];
+    if(p.locked && !announcedUnlocks[key] && isUnlocked(key)){
+      announcedUnlocks[key]=true;
+      toast(`Unlocked: ${p.name}!`);
+      refreshPlaneList();
+    }
+  }
+}
+let saveTimer=0, scoreSavedDelta=0;
+function finalizeScore(){
+  if(scoreSavedDelta>0){
+    unlocks.points=(unlocks.points||0)+Math.floor(scoreSavedDelta);
+    localStorage.setItem(SAVEKEY,JSON.stringify(unlocks));
+    scoreSavedDelta=0;
+    refreshPlaneList();
+  }
+  localStorage.setItem(STATSKEY,JSON.stringify(stats));
+}
 
 /**************** Gameplay helpers ****************/
 function togglePause(){paused=!paused;ui.pause.textContent=paused?'Resume (P / Start)':'Pause (P / Start)';focusCanvas()}
-function throwPlane(){plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value);focusCanvas()}
+function throwPlane(){
+  plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value);
+  metrics={distance:0,time:0,targets:0};
+  lastPos=plane.pos.clone();
+  targetsHitStep=0;
+  focusCanvas();
+}
 function collide(){ if(ui.ghost.checked) return false; if(plane.pos.y<scene.bounds.min.y-0.2) return true; for(const b of scene.boxes){ if(pointInBox(plane.pos,b)) return true } return false }
 function pointInBox(p,box){return(p.x>=box.min.x&&p.x<=box.max.x&&p.y>=box.min.y&&p.y<=box.max.y&&p.z>=box.min.z&&p.z<=box.max.z)}
-function applyUpdrafts(pos,t){let add=new Vec3(0,0,0);for(const u of updrafts){if(u.vanish && t<u.hideUntil) continue;const dx=pos.x-u.pos.x,dz=pos.z-u.pos.z;const r=u.r; if(dx*dx+dz*dz<r*r){u.vanish=true;u.hideUntil=t+4; add.y+=u.str;      toast('Caught updraft +');}}  return add}
+function applyUpdrafts(pos,t){
+  let add=new Vec3(0,0,0);
+  for(const u of updrafts){
+    if(u.vanish && t<u.hideUntil) continue;
+    const dx=pos.x-u.pos.x,dz=pos.z-u.pos.z;
+    const r=u.r;
+    if(dx*dx+dz*dz<r*r){
+      u.vanish=true;
+      u.hideUntil=t+4;
+      add.y+=u.str;
+      toast('Caught updraft +');
+      targetsHitStep++;
+    }
+  }
+  return add;
+}
 
 function nearestUpdraft(pos,t){let best=null,dist=Infinity;for(const u of updrafts){if(u.vanish && t<u.hideUntil) continue;const dx=u.pos.x-pos.x,dz=u.pos.z-pos.z;const d=Math.sqrt(dx*dx+dz*dz);if(d<dist){dist=d;best=Math.atan2(dx,dz);}}return best==null?0:best;}
 
