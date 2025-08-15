@@ -28,6 +28,7 @@ export class Plane{
     this.q=new Quat();
     this.thrown=false;
     this.lines=this.makeWire(params);
+    this.faces=this.makeFaces(params);
   }
   basis(){
     return{right:this.q.rotate(new Vec3(1,0,0)),up:this.q.rotate(new Vec3(0,1,0)),forward:this.q.rotate(new Vec3(0,0,1))};
@@ -58,11 +59,49 @@ export class Plane{
     }
     return e;
   }
+  makeFaces(p){
+    const f=[];
+    const span=0.14,len=0.22,tail=0.06;
+    const noseZ=p.name==='Snub Nose'?len*0.35:len/2;
+    const wingTip=span/2;
+    const pts={
+      nose:new Vec3(0,0,noseZ),
+      tail:new Vec3(0,0,-len/2),
+      left:new Vec3(-wingTip,0,0),
+      right:new Vec3(wingTip,0,0),
+      tailL:new Vec3(-tail/2,0,-len/2),
+      tailR:new Vec3(tail/2,0,-len/2),
+      finT:new Vec3(0,0.05,-len/2+0.025)
+    };
+    // Wings
+    f.push([pts.nose,pts.left,pts.tail]);
+    f.push([pts.nose,pts.tail,pts.right]);
+    // Horizontal tail
+    f.push([pts.tailL,pts.tail,pts.tailR]);
+    // Vertical fin
+    f.push([pts.tailL,pts.finT,pts.tailR]);
+    if(p.name==='Fighter Jet'){
+      const c=0.06;
+      f.push([new Vec3(-c,0,0.05),new Vec3(-c,0,0.12),new Vec3(0,0,0.12)]);
+      f.push([new Vec3(c,0,0.05),new Vec3(c,0,0.12),new Vec3(0,0,0.12)]);
+    }
+    return f;
+  }
   worldEdges(){
     const b=this.basis();
     const out=[];const T=this.pos;
     const rotate=p=>new Vec3(b.right.x*p.x+b.up.x*p.y+b.forward.x*p.z,b.right.y*p.x+b.up.y*p.y+b.forward.y*p.z,b.right.z*p.x+b.up.z*p.y+b.forward.z*p.z);
     for(const[a,bp]of this.lines){const pa=Vec3.add(rotate(a),T),pb=Vec3.add(rotate(bp),T);out.push([pa,pb]);}
+    return out;
+  }
+  worldFaces(){
+    const b=this.basis();
+    const out=[];const T=this.pos;
+    const rotate=p=>new Vec3(b.right.x*p.x+b.up.x*p.y+b.forward.x*p.z,b.right.y*p.x+b.up.y*p.y+b.forward.y*p.z,b.right.z*p.x+b.up.z*p.y+b.forward.z*p.z);
+    for(const face of this.faces){
+      const verts=face.map(v=>Vec3.add(rotate(v),T));
+      out.push(verts);
+    }
     return out;
   }
   reset(pos,dir,speed){
