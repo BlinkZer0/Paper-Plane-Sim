@@ -7,8 +7,8 @@ export const BASE_PLANES={
   glider:{ name:'Glider', mass:0.006, wingArea:0.028, CD0:0.04, k:0.05, stall:18*DEG, CLalpha:5.5, control:0.010, damping:0.28, rollDamp:0.25, yawDamp:0.30, groundEffect:0.9, I:0.00004 },
   stunt:{ name:'Stunt', mass:0.007, wingArea:0.020, CD0:0.06, k:0.07, stall:20*DEG, CLalpha:5.4, control:0.020, damping:0.33, rollDamp:0.30, yawDamp:0.36, groundEffect:0.7, I:0.000028 },
   heavy:{ name:'Heavy', mass:0.010, wingArea:0.019, CD0:0.055,k:0.065,stall:15*DEG, CLalpha:5.0, control:0.012, damping:0.40, rollDamp:0.38, yawDamp:0.45, groundEffect:0.6, I:0.00005 },
-  snub:{ name:'Snub Nose', mass:0.0075, wingArea:0.018, CD0:0.052, k:0.062, stall:17*DEG, CLalpha:5.3, control:0.018, damping:0.33, rollDamp:0.30, yawDamp:0.37, groundEffect:0.75, I:0.000032, locked:true, requires:120 },
-  fighter:{ name:'Fighter Jet', mass:0.0065, wingArea:0.017, CD0:0.048, k:0.058, stall:22*DEG, CLalpha:5.8, control:0.028, damping:0.30, rollDamp:0.28, yawDamp:0.34, groundEffect:0.8, I:0.000027, locked:true, requires:600 }
+  snub:{ name:'Snub Nose', mass:0.0075, wingArea:0.018, CD0:0.052, k:0.062, stall:17*DEG, CLalpha:5.3, control:0.018, damping:0.33, rollDamp:0.30, yawDamp:0.37, groundEffect:0.75, I:0.000032, locked:true, requires:{points:120,distance:500} },
+  fighter:{ name:'Fighter Jet', mass:0.0065, wingArea:0.017, CD0:0.048, k:0.058, stall:22*DEG, CLalpha:5.8, control:0.028, damping:0.30, rollDamp:0.28, yawDamp:0.34, groundEffect:0.8, I:0.000027, locked:true, requires:{points:600,targets:5} }
 };
 
 export const BASE_MATERIALS={
