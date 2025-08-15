@@ -5,7 +5,7 @@ import { makeWind, buildUpdrafts } from './wind.js';
 import { Plane, BASE_PLANES } from './plane.js';
 
 /**************** Camera & draw ****************/
-let canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');function resize(){canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px'}addEventListener('resize',resize);resize();
+let canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');function resize(){canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px'}addEventListener('resize',resize);resize();canvas.focus();function focusCanvas(){canvas.focus();}
 const camera={pos:new Vec3(0,2,-6),target:new Vec3(0,1,0),up:new Vec3(0,1,0),fov:70*DEG,near:0.05};
 function getViewBasis(pos,target,up){const z=Vec3.sub(target,pos).norm();const x=up.cross(z).norm();const y=z.cross(x).norm();return{x,y,z}}
 function project(p){const rel=Vec3.sub(p,camera.pos);const basis=getViewBasis(camera.pos,camera.target,camera.up);const cx=rel.dot(basis.x),cy=rel.dot(basis.y),cz=rel.dot(basis.z);if(cz<camera.near)return null;const f=(canvas.height*0.5)/Math.tan(camera.fov*0.5);const sx=canvas.width*0.5+(cx*f/cz);const sy=canvas.height*0.5-(cy*f/cz);return{x:sx,y:sy,z:cz}}
@@ -15,14 +15,14 @@ function drawUpdrafts(list, now){ctx.save();for(const u of list){if(u.vanish && 
 /**************** World state ****************/
 let rng=new RNG('blink-zero');
 let ui={ level:document.getElementById('level'), plane:document.getElementById('plane'), levelDetail:document.getElementById('levelDetail'), seed:document.getElementById('seed'), regen:document.getElementById('regen'), throw:document.getElementById('throw'), throwVal:document.getElementById('throwVal'), windPreset:document.getElementById('windPreset'), assist:document.getElementById('assist'), ghost:document.getElementById('ghost'), launch:document.getElementById('launch'), pause:document.getElementById('pauseBtn'), fps:document.getElementById('fps'), spd:document.getElementById('spd'), aoa:document.getElementById('aoa'), alt:document.getElementById('alt'), wnd:document.getElementById('wind'), pts:document.getElementById('points'), session:document.getElementById('session'), padState:document.getElementById('padState'), control:document.getElementById('controlMode'), unlockInfo:document.getElementById('unlockInfo') };
-ui.throw.addEventListener('input',()=>ui.throwVal.textContent=(+ui.throw.value).toFixed(1)+' m/s');
+ui.throw.addEventListener('input',()=>ui.throwVal.textContent=(+ui.throw.value).toFixed(1)+' m/s');ui.throw.addEventListener('change',()=>focusCanvas());
 let scene={edges:[],boxes:[],spawn:new Vec3(0,1.5,0),bounds:{min:new Vec3(-10,0,-10),max:new Vec3(10,5,10)}};let updrafts=[];let plane;let windField;let paused=false,tGlobal=0;let score=0, sessionTime=0;const SAVEKEY='paperplane_unlocks_v2';
 let unlocks = JSON.parse(localStorage.getItem(SAVEKEY)||'{}');
 function isUnlocked(key){const req=BASE_PLANES[key].requires;return !req || (unlocks.points||0)>=req}
 function refreshPlaneList(){ui.plane.innerHTML='';for(const key of Object.keys(BASE_PLANES)){const p=BASE_PLANES[key];const opt=document.createElement('option');opt.value=key;opt.textContent=p.name+(p.requires?` — ${isUnlocked(key)?'Unlocked':`Locked (${p.requires} pts)`}`:'');if(p.requires && !isUnlocked(key)){opt.disabled=true;opt.className='locked'}ui.plane.appendChild(opt)}ui.unlockInfo.textContent=`Total pts: ${unlocks.points||0}`}
 function rebuild(){rng=new RNG(ui.seed.value||'seed');const L=ui.level.value;let s; if(L==='house')s=buildHouse(rng); if(L==='office')s=buildOffice(rng); if(L==='mall')s=buildMall(rng); if(L==='stadium')s=buildStadium(rng); if(L==='google')s=buildGoogleCity(rng); scene=s;windField=makeWind(L,rng.seed);updrafts=buildUpdrafts(L,rng,scene.bounds);plane=new Plane(BASE_PLANES[ui.plane.value]||BASE_PLANES.dart);plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value);ui.levelDetail.textContent=`edges:${scene.edges.length} boxes:${scene.boxes.length} updrafts:${updrafts.length}`;sessionTime=0}
 refreshPlaneList();ui.plane.value='dart';
-ui.regen.addEventListener('click',rebuild);ui.level.addEventListener('change',rebuild);ui.plane.addEventListener('change',()=>{plane=new Plane(BASE_PLANES[ui.plane.value]);});
+ui.regen.addEventListener('click',()=>{rebuild();focusCanvas();});ui.level.addEventListener('change',()=>{rebuild();focusCanvas();});ui.plane.addEventListener('change',()=>{plane=new Plane(BASE_PLANES[ui.plane.value]);focusCanvas();});ui.control.addEventListener('change',()=>focusCanvas());ui.windPreset.addEventListener('change',()=>focusCanvas());ui.assist.addEventListener('change',()=>focusCanvas());ui.ghost.addEventListener('change',()=>focusCanvas());ui.launch.addEventListener('click',()=>{throwPlane();focusCanvas();});ui.pause.addEventListener('click',()=>{togglePause();focusCanvas();});
 
 /**************** Input: Keyboard & Gamepad ****************/
 const keys={}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.code==='Space'){e.preventDefault();throwPlane()} if(e.key.toLowerCase()==='p'){togglePause()}}); addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
@@ -36,8 +36,8 @@ function addScore(dt){if(!plane.thrown)return; score+=dt; sessionTime+=dt; const
 let saveTimer=0, scoreSavedDelta=0; function finalizeScore(){ if(scoreSavedDelta>0){unlocks.points=(unlocks.points||0)+Math.floor(scoreSavedDelta); localStorage.setItem(SAVEKEY,JSON.stringify(unlocks)); scoreSavedDelta=0; refreshPlaneList(); }}
 
 /**************** Gameplay helpers ****************/
-function togglePause(){paused=!paused;ui.pause.textContent=paused?'Resume (P / Start)':'Pause (P / Start)'}
-function throwPlane(){plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value)}
+function togglePause(){paused=!paused;ui.pause.textContent=paused?'Resume (P / Start)':'Pause (P / Start)';focusCanvas()}
+function throwPlane(){plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value);focusCanvas()}
 function collide(){ if(ui.ghost.checked) return false; if(plane.pos.y<scene.bounds.min.y-0.2) return true; for(const b of scene.boxes){ if(pointInBox(plane.pos,b)) return true } return false }
 function pointInBox(p,box){return(p.x>=box.min.x&&p.x<=box.max.x&&p.y>=box.min.y&&p.y<=box.max.y&&p.z>=box.min.z&&p.z<=box.max.z)}
 function applyUpdrafts(pos,t){let add=new Vec3(0,0,0);for(const u of updrafts){if(u.vanish && t<u.hideUntil) continue;const dx=pos.x-u.pos.x,dz=pos.z-u.pos.z;const r=u.r; if(dx*dx+dz*dz<r*r){u.vanish=true;u.hideUntil=t+4; add.y+=u.str;      toast('Caught updraft +');}}  return add}

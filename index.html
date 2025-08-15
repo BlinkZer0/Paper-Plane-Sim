@@ -7,13 +7,15 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<canvas id="canvas"></canvas>
+<main>
+  <canvas id="canvas" tabindex="0" aria-label="Flight simulation canvas"></canvas>
+</main>
 
-<div id="hud">
+<header id="hud">
   <h1>Wireframe Paper Plane</h1>
   <div class="row">
     <label>Level</label>
-    <select id="level">
+    <select id="level" aria-label="Level">
       <option value="house">House</option>
       <option value="office">Office</option>
       <option value="mall">Mall Atrium</option>
@@ -24,12 +26,12 @@
   </div>
   <div class="row">
     <label>Plane</label>
-    <select id="plane"></select>
+    <select id="plane" aria-label="Plane"></select>
     <span id="unlockInfo" class="pill"></span>
   </div>
   <div class="row">
     <label>Controls</label>
-    <select id="controlMode">
+    <select id="controlMode" aria-label="Control mode">
       <option value="auto">Auto (KB/Gamepad)</option>
       <option value="keyboard">Keyboard (WASD/QE)</option>
       <option value="gamepad">Gamepad</option>
@@ -38,17 +40,17 @@
   </div>
   <div class="row">
     <label>Seed</label>
-    <input id="seed" type="text" value="blink-zero" />
-    <button id="regen">Rebuild</button>
+    <input id="seed" type="text" value="blink-zero" aria-label="Seed" />
+    <button id="regen" aria-label="Rebuild">Rebuild</button>
   </div>
   <div class="row">
     <label>Throw</label>
-    <input id="throw" type="range" min="4" max="22" value="10" step="0.1" />
+    <input id="throw" type="range" min="4" max="22" value="10" step="0.1" aria-label="Throw speed" />
     <span id="throwVal" class="pill">10.0 m/s</span>
   </div>
   <div class="row">
     <label>Wind</label>
-    <select id="windPreset">
+    <select id="windPreset" aria-label="Wind preset">
       <option value="auto">Auto</option>
       <option value="calm">Calm</option>
       <option value="indoor">Indoor</option>
@@ -59,18 +61,19 @@
   </div>
   <div class="row">
     <label>Assist</label>
-    <input id="assist" type="checkbox" checked />
+    <input id="assist" type="checkbox" checked aria-label="Auto-stabilize" />
     <label for="assist">Auto-stabilize</label>
-    <input id="ghost" type="checkbox" />
+    <input id="ghost" type="checkbox" aria-label="Ghost crashes" />
     <label for="ghost">Ghost crashes</label>
   </div>
   <div class="row">
-    <button id="launch">Throw / Respawn (Space / A)</button>
-    <button id="pauseBtn">Pause (P / Start)</button>
+    <button id="launch" aria-label="Throw or respawn">Throw / Respawn (Space / A)</button>
+    <button id="pauseBtn" aria-label="Pause or resume">Pause (P / Start)</button>
   </div>
-</div>
 
-<div id="right">
+</header>
+
+<section id="right">
   <strong>Controls</strong>
   <div style="margin-top:6px;color:var(--muted)">
     <span class="kbd">W/S</span> pitch · <span class="kbd">A/D</span> roll · <span class="kbd">Q/E</span> yaw · <span class="kbd">Space</span> throw · <span class="kbd">P</span> pause. Gamepad: left stick (pitch/roll), right stick X (yaw), <span class="kbd">A</span> throw, <span class="kbd">Start</span> pause.
@@ -83,14 +86,14 @@
       <li>Auto-stabilize + Ghost crash option</li>
     </ul>
   </details>
-</div>
+</section>
 
-<div id="overlay">
-  <div id="stats">
+<section id="overlay">
+  <section id="stats">
     <div>FPS <span id="fps">0</span> · Speed <span id="spd">0</span> m/s · AoA <span id="aoa">0</span>° · Alt <span id="alt">0</span> m</div>
     <div>Wind <span id="wind">0</span> m/s · Points <span id="points">0</span> · Session <span id="session">0</span>s</div>
-  </div>
-</div>
+  </section>
+</section>
 
 <script type="module" src="/src/main.js"></script>
 </body>
