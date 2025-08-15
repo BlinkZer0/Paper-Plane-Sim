@@ -17,4 +17,5 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px/1.
 .locked{opacity:.6}
 .locktag{color:var(--lock);font-size:12px}
 .green{color:var(--ok)}
+.material-icon{width:20px;height:20px;border:1px solid #243043;border-radius:4px;background-size:cover;background-position:center;display:inline-block}
 
