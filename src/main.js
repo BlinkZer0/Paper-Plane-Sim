@@ -1,5 +1,5 @@
 import { Vec3 } from './vec3.js';
-import { RNG, DEG, lerp, TAU } from './utils.js';
+import { RNG, DEG, lerp, TAU, clamp } from './utils.js';
 import { buildHouse, buildOffice, buildMall, buildStadium, buildGoogleCity } from './levels.js';
 import { makeWind, buildUpdrafts } from './wind.js';
 import { Plane, BASE_PLANES, BASE_MATERIALS } from './plane.js';
@@ -56,6 +56,7 @@ let ui={
   session:document.getElementById("session"),
   padState:document.getElementById("padState"),
   control:document.getElementById("controlMode"),
+  tiltReset:document.getElementById("tiltReset"),
   unlockInfo:document.getElementById("unlockInfo"),
   bestDist:document.getElementById("bestDist"),
   bestTime:document.getElementById("bestTime"),
@@ -181,9 +182,17 @@ ui.regen.addEventListener('click',()=>{rebuild();focusCanvas();});ui.level.addEv
 
 /**************** Input: Keyboard & Gamepad ****************/
 const keys={}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.code==='Space'){e.preventDefault();if(!tutorialActive)throwPlane()} if(e.key.toLowerCase()==='p'){if(!tutorialActive)togglePause()}}); addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
+let tilt={pitch:0,roll:0,yaw:0};
+let tiltBase={beta:0,gamma:0,alpha:0};
+let tiltLast={beta:0,gamma:0,alpha:0};
+let tiltReady=false;
+function resetTilt(){tiltBase={beta:tiltLast.beta,gamma:tiltLast.gamma,alpha:tiltLast.alpha};}
+addEventListener('deviceorientation',e=>{tiltLast.beta=e.beta||0;tiltLast.gamma=e.gamma||0;tiltLast.alpha=e.alpha||0;if(!tiltReady&&ui.control.value==='tilt'){resetTilt();tiltReady=true;}tilt.pitch=clamp((tiltLast.beta-tiltBase.beta)/45,-1,1);tilt.roll=clamp((tiltLast.gamma-tiltBase.gamma)/45,-1,1);const dyaw=((tiltLast.alpha-tiltBase.alpha+540)%360)-180;tilt.yaw=clamp(dyaw/45,-1,1);});
+ui.tiltReset.addEventListener('click',()=>{resetTilt();tiltReady=true;focusCanvas()});
+ui.control.addEventListener('change',()=>{if(ui.control.value==='tilt'){ui.tiltReset.style.display='inline-block';tiltReady=false;}else{ui.tiltReset.style.display='none';}});
 let gamepadIndex=null;window.addEventListener('gamepadconnected',e=>{gamepadIndex=e.gamepad.index;ui.padState.textContent='gamepad connected';});window.addEventListener('gamepaddisconnected',()=>{gamepadIndex=null;ui.padState.textContent='no gamepad'});
 function readGamepad(){if(gamepadIndex==null)return null;const gp=navigator.getGamepads()[gamepadIndex];if(!gp)return null;const dz=0.18;const ax=(v)=>Math.abs(v)<dz?0:v;  const pitch=ax(gp.axes[1]||0); const roll=ax(gp.axes[0]||0); const yaw=ax(gp.axes[2]||gp.axes[3]||0); const A=gp.buttons[0]?.pressed; const Start=(gp.buttons[9]?.pressed)||false; return { pitch, roll, yaw, A, Start } }
-function getInput(){const mode=ui.control.value;let fromPad=readGamepad(); if(mode==='gamepad' || (mode==='auto' && fromPad)){ if(!tutorialActive){ if(fromPad?.Start && !prevPadStart){togglePause()} if(fromPad?.A && !prevPadA){throwPlane()} } prevPadStart=!!fromPad?.Start; prevPadA=!!fromPad?.A; return { pitch: fromPad?fromPad.pitch:0, roll: fromPad?fromPad.roll:0, yaw: fromPad?fromPad.yaw:0 } }  return { pitch:(keys['s']||keys['arrowdown']?1:0)-(keys['w']||keys['arrowup']?1:0), roll:(keys['d']||keys['arrowright']?1:0)-(keys['a']||keys['arrowleft']?1:0), yaw:(keys['e']?1:0)-(keys['q']?1:0) } }
+function getInput(){const mode=ui.control.value;let fromPad=readGamepad(); if(mode==='gamepad' || (mode==='auto' && fromPad)){ if(!tutorialActive){ if(fromPad?.Start && !prevPadStart){togglePause()} if(fromPad?.A && !prevPadA){throwPlane()} } prevPadStart=!!fromPad?.Start; prevPadA=!!fromPad?.A; return { pitch: fromPad?fromPad.pitch:0, roll: fromPad?fromPad.roll:0, yaw: fromPad?fromPad.yaw:0 } }  if(mode==='tilt'){ return { pitch:tilt.pitch, roll:tilt.roll, yaw:tilt.yaw } }  return { pitch:(keys['s']||keys['arrowdown']?1:0)-(keys['w']||keys['arrowup']?1:0), roll:(keys['d']||keys['arrowright']?1:0)-(keys['a']||keys['arrowleft']?1:0), yaw:(keys['e']?1:0)-(keys['q']?1:0) } }
 let prevPadStart=false, prevPadA=false;
 
 /**************** Scoring & Unlocks ****************/
