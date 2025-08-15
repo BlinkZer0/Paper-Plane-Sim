@@ -5,7 +5,8 @@ import { makeWind, buildUpdrafts } from './wind.js';
 import { Plane, BASE_PLANES, BASE_MATERIALS } from './plane.js';
 import { Quat } from './quat.js';
 import { playRandomTrack, stopTrack, setTrackInfo } from './audio/background.js';
-import { audioReady, effects } from './audio/loader.js';
+import { audioReady } from './audio/loader.js';
+import { playThrow, playCollision, playUpdraft } from './audio/controller.js';
 
 /**************** Camera & draw ****************/
 let canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');
@@ -283,10 +284,23 @@ function throwPlane(){
   targetsHitStep=0;
   flightLog=[];wasThrown=false;
   replaying=false;ghostPlane=null;
-  audioReady.then(()=>{const s=effects.swoosh; if(s){s.currentTime=0; s.play();}});
+  playThrow();
   focusCanvas();
 }
-function collide(){ if(ui.ghost.checked) return false; if(plane.pos.y<scene.bounds.min.y-0.2) return true; for(const b of scene.boxes){ if(pointInBox(plane.pos,b)) return true } return false }
+function collide(){
+  if(ui.ghost.checked) return false;
+  if(plane.pos.y<scene.bounds.min.y-0.2){
+    playCollision(ui.plane.value);
+    return true;
+  }
+  for(const b of scene.boxes){
+    if(pointInBox(plane.pos,b)){
+      playCollision(ui.plane.value);
+      return true;
+    }
+  }
+  return false;
+}
 function pointInBox(p,box){return(p.x>=box.min.x&&p.x<=box.max.x&&p.y>=box.min.y&&p.y<=box.max.y&&p.z>=box.min.z&&p.z<=box.max.z)}
 function applyUpdrafts(pos,t){
   let add=new Vec3(0,0,0);
@@ -300,6 +314,7 @@ function applyUpdrafts(pos,t){
       add.y+=u.str;
       toast('Caught updraft +');
       targetsHitStep++;
+      playUpdraft();
     }
   }
   return add;
