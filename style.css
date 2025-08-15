@@ -13,6 +13,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px/1.
 #right{position:fixed;right:12px;top:12px;background:#0b0f14cc;border:1px solid #1f2a3c;padding:10px 12px;border-radius:12px;width:360px;max-width:50vw}
 #overlay{position:fixed;left:12px;bottom:12px;display:flex;gap:12px;align-items:center}
 #stats{background:#0b0f14cc;border:1px solid #1f2a3c;padding:8px 12px;border-radius:12px}
+#compass{background:#0b0f14cc;border:1px solid #1f2a3c;border-radius:50%}
 .locked{opacity:.6}
 .locktag{color:var(--lock);font-size:12px}
 .green{color:var(--ok)}

@@ -132,5 +132,6 @@ export class Plane{
     this._alpha=alpha;
     this._speed=speed;
     this._wind=wind.len();
+    this._windVec = wind.clone();
   }
 }
