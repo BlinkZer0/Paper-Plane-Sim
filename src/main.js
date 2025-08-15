@@ -64,11 +64,13 @@ let ui={
 };
 setTrackInfo('');
 ui.throw.addEventListener('input',()=>ui.throwVal.textContent=(+ui.throw.value).toFixed(1)+' m/s');ui.throw.addEventListener('change',()=>focusCanvas());
+const TUTORIAL_KEY='paperplane_tutorial_v1';
+let tutorialActive=!localStorage.getItem(TUTORIAL_KEY);
 let scene={edges:[],boxes:[],spawn:new Vec3(0,1.5,0),bounds:{min:new Vec3(-10,0,-10),max:new Vec3(10,5,10)}};
 let updrafts=[];
 let plane;
 let windField;
-let paused=false,tGlobal=0;
+let paused=tutorialActive,tGlobal=0;
 let score=0, sessionTime=0;
 const SAVEKEY='paperplane_unlocks_v2';
 const STATSKEY='paperplane_stats_v1';
@@ -175,13 +177,13 @@ updateAchievementsPanel();
 ui.plane.value='dart';
 ui.material.value='printer';
 updateMaterialIcon();
-ui.regen.addEventListener('click',()=>{rebuild();focusCanvas();});ui.level.addEventListener('change',()=>{rebuild();focusCanvas();});ui.plane.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});ui.material.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});ui.control.addEventListener('change',()=>focusCanvas());ui.windPreset.addEventListener('change',()=>focusCanvas());ui.assist.addEventListener('change',()=>focusCanvas());ui.ghost.addEventListener('change',()=>focusCanvas());ui.launch.addEventListener('click',()=>{throwPlane();focusCanvas();});ui.pause.addEventListener('click',()=>{togglePause();focusCanvas();});
+ui.regen.addEventListener('click',()=>{rebuild();focusCanvas();});ui.level.addEventListener('change',()=>{rebuild();focusCanvas();});ui.plane.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});ui.material.addEventListener('change',()=>{plane=new Plane(makeParams());updateMaterialIcon();focusCanvas();});ui.control.addEventListener('change',()=>focusCanvas());ui.windPreset.addEventListener('change',()=>focusCanvas());ui.assist.addEventListener('change',()=>focusCanvas());ui.ghost.addEventListener('change',()=>focusCanvas());ui.launch.addEventListener('click',()=>{if(!tutorialActive){throwPlane();focusCanvas();}});ui.pause.addEventListener('click',()=>{if(!tutorialActive){togglePause();focusCanvas();}});
 
 /**************** Input: Keyboard & Gamepad ****************/
-const keys={}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.code==='Space'){e.preventDefault();throwPlane()} if(e.key.toLowerCase()==='p'){togglePause()}}); addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
+const keys={}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.code==='Space'){e.preventDefault();if(!tutorialActive)throwPlane()} if(e.key.toLowerCase()==='p'){if(!tutorialActive)togglePause()}}); addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
 let gamepadIndex=null;window.addEventListener('gamepadconnected',e=>{gamepadIndex=e.gamepad.index;ui.padState.textContent='gamepad connected';});window.addEventListener('gamepaddisconnected',()=>{gamepadIndex=null;ui.padState.textContent='no gamepad'});
 function readGamepad(){if(gamepadIndex==null)return null;const gp=navigator.getGamepads()[gamepadIndex];if(!gp)return null;const dz=0.18;const ax=(v)=>Math.abs(v)<dz?0:v;  const pitch=ax(gp.axes[1]||0); const roll=ax(gp.axes[0]||0); const yaw=ax(gp.axes[2]||gp.axes[3]||0); const A=gp.buttons[0]?.pressed; const Start=(gp.buttons[9]?.pressed)||false; return { pitch, roll, yaw, A, Start } }
-function getInput(){const mode=ui.control.value;let fromPad=readGamepad(); if(mode==='gamepad' || (mode==='auto' && fromPad)){ if(fromPad?.Start && !prevPadStart){togglePause()} if(fromPad?.A && !prevPadA){throwPlane()} prevPadStart=!!fromPad?.Start; prevPadA=!!fromPad?.A; return { pitch: fromPad?fromPad.pitch:0, roll: fromPad?fromPad.roll:0, yaw: fromPad?fromPad.yaw:0 } }  return { pitch:(keys['s']||keys['arrowdown']?1:0)-(keys['w']||keys['arrowup']?1:0), roll:(keys['d']||keys['arrowright']?1:0)-(keys['a']||keys['arrowleft']?1:0), yaw:(keys['e']?1:0)-(keys['q']?1:0) } }
+function getInput(){const mode=ui.control.value;let fromPad=readGamepad(); if(mode==='gamepad' || (mode==='auto' && fromPad)){ if(!tutorialActive){ if(fromPad?.Start && !prevPadStart){togglePause()} if(fromPad?.A && !prevPadA){throwPlane()} } prevPadStart=!!fromPad?.Start; prevPadA=!!fromPad?.A; return { pitch: fromPad?fromPad.pitch:0, roll: fromPad?fromPad.roll:0, yaw: fromPad?fromPad.yaw:0 } }  return { pitch:(keys['s']||keys['arrowdown']?1:0)-(keys['w']||keys['arrowup']?1:0), roll:(keys['d']||keys['arrowright']?1:0)-(keys['a']||keys['arrowleft']?1:0), yaw:(keys['e']?1:0)-(keys['q']?1:0) } }
 let prevPadStart=false, prevPadA=false;
 
 /**************** Scoring & Unlocks ****************/
@@ -273,6 +275,34 @@ function nearestUpdraft(pos,t){let best=null,dist=Infinity;for(const u of updraf
 /**************** Toast ****************/
 let toastDiv=null;function ensureToast(){if(!toastDiv){toastDiv=document.createElement('div');toastDiv.style.position='fixed';toastDiv.style.left='50%';toastDiv.style.top='14px';toastDiv.style.transform='translateX(-50%)';toastDiv.style.padding='8px 12px';toastDiv.style.background='#0b0f14cc';toastDiv.style.border='1px solid #1f2a3c';toastDiv.style.borderRadius='10px';toastDiv.style.pointerEvents='none';toastDiv.style.transition='opacity .2s';document.body.appendChild(toastDiv)}}
 function toast(msg){ensureToast();toastDiv.textContent=msg;toastDiv.style.opacity='1';setTimeout(()=>toastDiv.style.opacity='0',1200)}
+
+/**************** Tutorial ****************/
+const tutorialModal=document.getElementById('tutorialModal');
+const tutorialSteps=[...tutorialModal.querySelectorAll('.step')];
+const highlightElems=[ui.plane,ui.throw,ui.pause];
+tutorialSteps.forEach((step,i)=>{
+  step.querySelector('.tut-next').addEventListener('click',()=>{
+    highlightElems[i].classList.remove('highlight');
+    const next=i+1;
+    if(next>=tutorialSteps.length){
+      tutorialModal.classList.add('hidden');
+      tutorialActive=false;
+      paused=false;
+      localStorage.setItem(TUTORIAL_KEY,'1');
+    }else{
+      tutorialSteps[next].classList.remove('hidden');
+      tutorialSteps[i].classList.add('hidden');
+      highlightElems[next].classList.add('highlight');
+    }
+  });
+});
+function startTutorial(){
+  tutorialModal.classList.remove('hidden');
+  tutorialSteps.forEach((s,j)=>{if(j>0)s.classList.add('hidden');});
+  tutorialSteps[0].classList.remove('hidden');
+  highlightElems[0].classList.add('highlight');
+}
+if(tutorialActive) startTutorial();
 
 /**************** Loop ****************/
 let last=performance.now(),acc=0;rebuild();setTimeout(()=>throwPlane(),400);

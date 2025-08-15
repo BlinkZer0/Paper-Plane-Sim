@@ -110,6 +110,26 @@
   <canvas id="compass" width="80" height="80" aria-label="Compass"></canvas>
 </section>
 
+<div id="tutorialModal" class="hidden">
+  <div class="content">
+    <div class="step" data-step="0">
+      <img src="assets/paper/printer.svg" alt="Plane selector" />
+      <p>Select your plane here.</p>
+      <button class="tut-next">Next</button>
+    </div>
+    <div class="step hidden" data-step="1">
+      <img src="assets/paper/notebook.svg" alt="Throw control" />
+      <p>Adjust throw speed with this slider.</p>
+      <button class="tut-next">Next</button>
+    </div>
+    <div class="step hidden" data-step="2">
+      <img src="assets/paper/construction.svg" alt="Pause button" />
+      <p>Pause or resume the game anytime.</p>
+      <button class="tut-next">Start</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>
