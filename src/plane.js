@@ -11,6 +11,14 @@ export const BASE_PLANES={
   fighter:{ name:'Fighter Jet', mass:0.0065, wingArea:0.017, CD0:0.048, k:0.058, stall:22*DEG, CLalpha:5.8, control:0.028, damping:0.30, I:0.000027, locked:true, requires:600 }
 };
 
+export const BASE_MATERIALS={
+  construction:{ name:'Construction', mass:1.3, wingArea:1.05, CD0:1.1, color:'#f87171', texture:'assets/paper/construction.svg' },
+  notebook:{ name:'Notebook', mass:0.9, wingArea:1.0, CD0:0.98, color:'#f8fafc', texture:'assets/paper/notebook.svg' },
+  printer:{ name:'Printer', mass:1.0, wingArea:1.0, CD0:1.0, color:'#ffffff', texture:'assets/paper/printer.svg' },
+  wax:{ name:'Wax', mass:1.1, wingArea:1.02, CD0:0.95, color:'#e0f2fe', texture:'assets/paper/wax.svg' },
+  balsa:{ name:'Balsa', mass:2.0, wingArea:1.1, CD0:1.2, color:'#f5deb3', texture:'assets/paper/balsa.svg' }
+};
+
 export class Plane{
   constructor(params){
     this.params=params;
