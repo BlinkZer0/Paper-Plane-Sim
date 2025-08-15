@@ -40,8 +40,10 @@
       <option value="auto">Auto (KB/Gamepad)</option>
       <option value="keyboard">Keyboard (WASD/QE)</option>
       <option value="gamepad">Gamepad</option>
+      <option value="tilt">Tilt</option>
     </select>
     <span id="padState" class="pill">no gamepad</span>
+    <button id="tiltReset" aria-label="Reset tilt" style="display:none">Calibrate</button>
   </div>
   <div class="row">
     <label>Seed</label>
@@ -81,7 +83,7 @@
 <section id="right">
   <strong>Controls</strong>
   <div style="margin-top:6px;color:var(--muted)">
-    <span class="kbd">W/S</span> pitch · <span class="kbd">A/D</span> roll · <span class="kbd">Q/E</span> yaw · <span class="kbd">Space</span> throw · <span class="kbd">P</span> pause. Gamepad: left stick (pitch/roll), right stick X (yaw), <span class="kbd">A</span> throw, <span class="kbd">Start</span> pause.
+    <span class="kbd">W/S</span> pitch · <span class="kbd">A/D</span> roll · <span class="kbd">Q/E</span> yaw · <span class="kbd">Space</span> throw · <span class="kbd">P</span> pause. Gamepad: left stick (pitch/roll), right stick X (yaw), <span class="kbd">A</span> throw, <span class="kbd">Start</span> pause. Tilt: move device to steer, use Calibrate to reset.
   </div>
   <details style="margin-top:8px"><summary>What’s new</summary>
     <ul>
