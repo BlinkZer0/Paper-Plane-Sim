@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wireframe Paper Plane Flight — v2</title>
+<style>
+  :root { --bg:#0b0f14; --fg:#e6eef9; --muted:#94a3b8; --accent:#67e8f9; --ok:#86efac; --warn:#fbbf24; --lock:#f87171; }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  #canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;top:12px;left:12px;background:#0b0f14cc;border:1px solid #1f2a3c;padding:10px 12px;border-radius:12px;backdrop-filter:blur(3px)}
+  #hud h1{margin:0 0 8px;font-size:16px}
+  #hud .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+  #hud select,#hud input[type="number"],#hud input[type="text"]{background:#0b1220;color:var(--fg);border:1px solid #243043;border-radius:8px;padding:6px 8px}
+  #hud input[type="range"]{width:170px}
+  #hud button{background:linear-gradient(180deg,#172233,#0e1523);color:var(--fg);border:1px solid #273349;border-radius:10px;padding:6px 10px;cursor:pointer}
+  #hud button:hover{border-color:#3a4c6a}
+  #hud .pill{background:#0b1220;border:1px solid #243043;border-radius:999px;padding:2px 8px;font-size:12px;color:var(--muted)}
+  .kbd{background:#0b1220;border:1px solid #243043;border-radius:6px;padding:0 6px;font-size:12px}
+  #right{position:fixed;right:12px;top:12px;background:#0b0f14cc;border:1px solid #1f2a3c;padding:10px 12px;border-radius:12px;width:360px;max-width:50vw}
+  #overlay{position:fixed;left:12px;bottom:12px;display:flex;gap:12px;align-items:center}
+  #stats{background:#0b0f14cc;border:1px solid #1f2a3c;padding:8px 12px;border-radius:12px}
+  .locked{opacity:.6}
+  .locktag{color:var(--lock);font-size:12px}
+  .green{color:var(--ok)}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="hud">
+  <h1>Wireframe Paper Plane</h1>
+  <div class="row">
+    <label>Level</label>
+    <select id="level">
+      <option value="house">House</option>
+      <option value="office">Office</option>
+      <option value="mall">Mall Atrium</option>
+      <option value="stadium">Stadium</option>
+      <option value="google">Outdoor (100 ft)</option>
+    </select>
+    <span id="levelDetail" class="pill"></span>
+  </div>
+  <div class="row">
+    <label>Plane</label>
+    <select id="plane"></select>
+    <span id="unlockInfo" class="pill"></span>
+  </div>
+  <div class="row">
+    <label>Controls</label>
+    <select id="controlMode">
+      <option value="auto">Auto (KB/Gamepad)</option>
+      <option value="keyboard">Keyboard (WASD/QE)</option>
+      <option value="gamepad">Gamepad</option>
+    </select>
+    <span id="padState" class="pill">no gamepad</span>
+  </div>
+  <div class="row">
+    <label>Seed</label>
+    <input id="seed" type="text" value="blink-zero" />
+    <button id="regen">Rebuild</button>
+  </div>
+  <div class="row">
+    <label>Throw</label>
+    <input id="throw" type="range" min="4" max="22" value="10" step="0.1" />
+    <span id="throwVal" class="pill">10.0 m/s</span>
+  </div>
+  <div class="row">
+    <label>Wind</label>
+    <select id="windPreset">
+      <option value="auto">Auto</option>
+      <option value="calm">Calm</option>
+      <option value="indoor">Indoor</option>
+      <option value="drafty">Drafty</option>
+      <option value="gusty">Gusty</option>
+      <option value="outdoor">Outdoor</option>
+    </select>
+  </div>
+  <div class="row">
+    <label>Assist</label>
+    <input id="assist" type="checkbox" checked />
+    <label for="assist">Auto-stabilize</label>
+    <input id="ghost" type="checkbox" />
+    <label for="ghost">Ghost crashes</label>
+  </div>
+  <div class="row">
+    <button id="launch">Throw / Respawn (Space / A)</button>
+    <button id="pauseBtn">Pause (P / Start)</button>
+  </div>
+</div>
+
+<div id="right">
+  <strong>Controls</strong>
+  <div style="margin-top:6px;color:var(--muted)">
+    <span class="kbd">W/S</span> pitch · <span class="kbd">A/D</span> roll · <span class="kbd">Q/E</span> yaw · <span class="kbd">Space</span> throw · <span class="kbd">P</span> pause. Gamepad: left stick (pitch/roll), right stick X (yaw), <span class="kbd">A</span> throw, <span class="kbd">Start</span> pause.
+  </div>
+  <details style="margin-top:8px"><summary>What’s new</summary>
+    <ul>
+      <li>Gamepad support + auto-detect</li>
+      <li>Score over flight time; unlockables</li>
+      <li>Updrafts with shimmering columns</li>
+      <li>Auto-stabilize + Ghost crash option</li>
+    </ul>
+  </details>
+</div>
+
+<div id="overlay">
+  <div id="stats">
+    <div>FPS <span id="fps">0</span> · Speed <span id="spd">0</span> m/s · AoA <span id="aoa">0</span>° · Alt <span id="alt">0</span> m</div>
+    <div>Wind <span id="wind">0</span> m/s · Points <span id="points">0</span> · Session <span id="session">0</span>s</div>
+  </div>
+</div>
+
+<script>
+/******************** Utils ********************/
+const TAU=Math.PI*2, DEG=Math.PI/180; const clamp=(x,a,b)=>x<a?a:x>b?b:x; const lerp=(a,b,t)=>a+(b-a)*t; const smooth=t=>t*t*t*(t*(t*6-15)+10);
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}};
+function hash32(x){x|=0;x=(x^61)^(x>>>16);x=x+(x<<3)|0;x=x^(x>>>4);x=Math.imul(x,0x27d4eb2d);x=x^(x>>>15);return x>>>0}
+function seededInt(x,y,z,seed){let h=hash32(x*73856093^y*19349663^z*83492791^seed);return h}
+function valNoise3(x,y,z,seed){const xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z);const xf=x-xi,yf=y-yi,zf=z-zi;function v(ix,iy,iz){return(seededInt(ix,iy,iz,seed)&0xffff)/65535*2-1}const u=smooth(xf),v1=smooth(yf),w=smooth(zf);let c000=v(xi,yi,zi),c100=v(xi+1,yi,zi),c010=v(xi,yi+1,zi),c110=v(xi+1,yi+1,zi);let c001=v(xi,yi,zi+1),c101=v(xi+1,yi,zi+1),c011=v(xi,yi+1,zi+1),c111=v(xi+1,yi+1,zi+1);const x00=lerp(c000,c100,u),x10=lerp(c010,c110,u),x01=lerp(c001,c101,u),x11=lerp(c011,c111,u);const y0=lerp(x00,x10,v1),y1=lerp(x01,x11,v1);return lerp(y0,y1,w)}
+class RNG{constructor(seedStr){let s=0;for(let i=0;i<seedStr.length;i++)s=(s*31+seedStr.charCodeAt(i))>>>0;this._r=mulberry32(s||0x9e3779b9);this.seed=s}next(){return this._r()}range(a,b){return a+(b-a)*this.next()}int(a,b){return Math.floor(this.range(a,b+1))}pick(arr){return arr[this.int(0,arr.length-1)]}}
+class Vec3{constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z}set(x,y,z){this.x=x;this.y=y;this.z=z;return this}clone(){return new Vec3(this.x,this.y,this.z)}add(v){this.x+=v.x;this.y+=v.y;this.z+=v.z;return this}sub(v){this.x-=v.x;this.y-=v.y;this.z-=v.z;return this}mul(s){this.x*=s;this.y*=s;this.z*=s;return this}div(s){this.x/=s;this.y/=s;this.z/=s;return this}dot(v){return this.x*v.x+this.y*v.y+this.z*v.z}cross(v){return new Vec3(this.y*v.z-this.z*v.y,this.z*v.x-this.x*v.z,this.x*v.y-this.y*v.x)}len(){return Math.hypot(this.x,this.y,this.z)}norm(){const l=this.len()||1;return this.div(l)}static add(a,b){return new Vec3(a.x+b.x,a.y+b.y,a.z+b.z)}static sub(a,b){return new Vec3(a.x-b.x,a.y-b.y,a.z-b.z)}static mul(a,s){return new Vec3(a.x*s,a.y*s,a.z*s)}}
+class Quat{constructor(x=0,y=0,z=0,w=1){this.x=x;this.y=y;this.z=z;this.w=w}static fromAxisAngle(axis,angle){const s=Math.sin(angle/2);return new Quat(axis.x*s,axis.y*s,axis.z*s,Math.cos(angle/2))}mul(q){const ax=this.x,ay=this.y,az=this.z,aw=this.w;const bx=q.x,by=q.y,bz=q.z,bw=q.w;return new Quat(aw*bx+ax*bw+ay*bz-az*by,aw*by-ay*bw+az*bx-ax*bz,aw*bz+az*bw+ax*by-ay*bx,aw*bw-ax*bx-ay*by-az*bz)}rotate(v){const qv=new Quat(v.x,v.y,v.z,0);const qi=new Quat(-this.x,-this.y,-this.z,this.w);const rq=this.mul(qv).mul(qi);return new Vec3(rq.x,rq.y,rq.z)}norm(){const l=Math.hypot(this.x,this.y,this.z,this.w)||1;this.x/=l;this.y/=l;this.z/=l;this.w/=l;return this}}
+
+/**************** Scene primitives ****************/
+function addBox(edges,min,max){const p=[new Vec3(min.x,min.y,min.z),new Vec3(max.x,min.y,min.z),new Vec3(max.x,max.y,min.z),new Vec3(min.x,max.y,min.z),new Vec3(min.x,min.y,max.z),new Vec3(max.x,min.y,max.z),new Vec3(max.x,max.y,max.z),new Vec3(min.x,max.y,max.z)];const e=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];for(const[a,b]of e)edges.push([p[a],p[b]])}
+function addRectFrame(edges,c,w,h,z){const x=w/2,y=h/2;const pts=[new Vec3(c.x-x,c.y-y,z),new Vec3(c.x+x,c.y-y,z),new Vec3(c.x+x,c.y+y,z),new Vec3(c.x-x,c.y+y,z)];const e=[[0,1],[1,2],[2,3],[3,0],[0,2],[1,3]];for(const[a,b]of e)edges.push([pts[a],pts[b]])}
+function addRing(edges,center,r,z,segments=64){let prev=null;for(let i=0;i<=segments;i++){const t=i/segments*TAU;const p=new Vec3(center.x+Math.cos(t)*r,center.y+Math.sin(t)*r,z);if(prev)edges.push([prev,p]);prev=p}}
+
+/**************** Levels ****************/
+function buildHouse(rng){const edges=[],boxes=[];const rooms=rng.int(3,5);const roomW=8,roomH=3,roomD=8;const cols=rng.int(2,3);const rows=Math.ceil(rooms/cols);let x0=-cols*roomW*0.55,z0=-rows*roomD*0.55;let i=0;for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){if(i++>=rooms)break;const cx=x0+c*roomW*1.1,cz=z0+r*roomD*1.1;addBox(edges,new Vec3(cx-roomW/2,0,cz-roomD/2),new Vec3(cx+roomW/2,roomH,cz+roomD/2));boxes.push({min:new Vec3(cx-roomW/2,0,cz-roomD/2),max:new Vec3(cx+roomW/2,roomH,cz+roomD/2)});addRectFrame(edges,new Vec3(cx,1.0,cz-roomD/2),1.2,2.1,0);const tx=cx+rng.range(-2,2),tz=cz+rng.range(-2,2);addBox(edges,new Vec3(tx-0.6,0.7,tz-0.4),new Vec3(tx+0.6,0.78,tz+0.4));for(const dx of[-0.55,0.55])for(const dz of[-0.35,0.35])addBox(edges,new Vec3(tx+dx-0.05,0,tz+dz-0.05),new Vec3(tx+dx+0.05,0.7,tz+dz+0.05));const cxh=tx+1.0,czh=tz;addBox(edges,new Vec3(cxh-0.25,0,czh-0.25),new Vec3(cxh+0.25,0.45,czh+0.25));addRectFrame(edges,new Vec3(cxh,0.9,czh-0.25),0.5,0.9,0)}}for(let x=-10;x<=10;x+=2)for(let z=-10;z<=10;z+=2)edges.push([new Vec3(x,3,z),new Vec3(x+2,3,z)]);for(let x=-10;x<=10;x+=2)for(let z=-10;z<=10;z+=2)edges.push([new Vec3(x,3,z),new Vec3(x,3,z+2)]);return{edges,boxes,spawn:new Vec3(0,1.5,-rows*roomD*0.6),bounds:{min:new Vec3(-12,0,-12),max:new Vec3(12,4,12)}}}
+function buildOffice(rng){const edges=[],boxes=[];const w=40,d=30,h=3.2;addBox(edges,new Vec3(-w/2,0,-d/2),new Vec3(w/2,h,d/2));boxes.push({min:new Vec3(-w/2,0,-d/2),max:new Vec3(w/2,h,d/2)});const cw=3.0,cd=3.0;for(let x=-w/2+2;x<w/2-2;x+=cw+1){for(let z=-d/2+2;z<d/2-2;z+=cd+1){addBox(edges,new Vec3(x,0.0,z),new Vec3(x+cw,1.5,z+cd));addBox(edges,new Vec3(x+0.4,0.7,z+0.4),new Vec3(x+cw-0.4,0.78,z+cd-0.4));addRectFrame(edges,new Vec3(x+cw*0.5,1.1,z+cd*0.5),0.7,0.45,0)}}for(let x=-w/2+5;x<=w/2-5;x+=10){for(let z=-d/2+5;z<=d/2-5;z+=10){addBox(edges,new Vec3(x-0.4,0,z-0.4),new Vec3(x+0.4,h,z+0.4))}}return{edges,boxes,spawn:new Vec3(-w/2+2,1.6,-d/2+2),bounds:{min:new Vec3(-w/2,0,-d/2),max:new Vec3(w/2,h+0.5,d/2)}}}
+function buildMall(rng){const edges=[],boxes=[];const w=50,d=30,floors=3;const floorH=4.0;addBox(edges,new Vec3(-w/2,0,-d/2),new Vec3(w/2,floors*floorH,d/2));boxes.push({min:new Vec3(-w/2,0,-d/2),max:new Vec3(w/2,floors*floorH,d/2)});const aw=w*0.5,ad=d*0.4;addRectFrame(edges,new Vec3(0,0,0),aw,ad,0);for(let f=1;f<=floors;f++){const y=f*floorH-1.2;addRectFrame(edges,new Vec3(0,y,0),aw,ad,0);addRectFrame(edges,new Vec3(0,y,0),aw*0.2,2.0,0);addRectFrame(edges,new Vec3(0,y,0),2.0,ad*0.2,0)}for(let s=-1;s<=1;s+=2){let x=s*(aw/2-3);for(let f=0;f<floors-1;f++){const y0=f*floorH+0.2,y1=(f+1)*floorH-0.2;addBox(edges,new Vec3(x-0.5,y0,-5),new Vec3(x+0.5,y1,-3));addBox(edges,new Vec3(x-0.5,y0,3),new Vec3(x+0.5,y1,5))}}return{edges,boxes,spawn:new Vec3(-aw/2+2,2.0,-ad/2+2),bounds:{min:new Vec3(-w/2,0,-d/2),max:new Vec3(w/2,floors*floorH+1,d/2)}}}
+function buildStadium(rng){const edges=[],boxes=[];const R=45,inner=20,height=18;const rings=18;for(let i=0;i<rings;i++){const t=i/(rings-1);const r=lerp(inner,R,t);const y=lerp(1,height,t*t);addRing(edges,new Vec3(0,y,0),r,0,96)}addRectFrame(edges,new Vec3(0,0.5,0),inner*1.2,inner*0.8,0);for(let k=0;k<4;k++){const a=k*TAU/4;const x=Math.cos(a)*(R+3),z=Math.sin(a)*(R+3);addBox(edges,new Vec3(x-0.6,0,z-0.6),new Vec3(x+0.6,12,z+0.6));addRectFrame(edges,new Vec3(x,13,z),6,2,0)}boxes.push({min:new Vec3(-inner*0.6,0,-inner*0.4),max:new Vec3(inner*0.6,1.0,inner*0.4)});return{edges,boxes,spawn:new Vec3(-inner*0.5,3.0,-inner*0.3),bounds:{min:new Vec3(-R-5,0,-R-5),max:new Vec3(R+5,height+2,R+5)}}}
+function buildGoogleCity(rng){const edges=[],boxes=[];const size=120;const block=rng.range(16,22);const streets=1.8;for(let x=-size;x<=size;x+=block){for(let z=-size;z<=size;z+=block){addBox(edges,new Vec3(x-streets/2,0,z-(block+streets)/2),new Vec3(x+streets/2,0.1,z+(block+streets)/2));addBox(edges,new Vec3((x-(block+streets)/2),0,z-streets/2),new Vec3((x+(block+streets)/2),0.1,z+streets/2))}}const dens=0.5;for(let x=-size+block/2;x<size;x+=block){for(let z=-size+block/2;z<size;z+=block){if(rng.next()<dens){const bx=x+rng.range(-block*0.3,block*0.3),bz=z+rng.range(-block*0.3,block*0.3);const bw=rng.range(block*0.25,block*0.45),bd=rng.range(block*0.25,block*0.45),bh=rng.range(8,55);addBox(edges,new Vec3(bx-bw/2,0.1,bz-bd/2),new Vec3(bx+bw/2,bh,bz+bd/2));boxes.push({min:new Vec3(bx-bw/2,0.1,bz-bd/2),max:new Vec3(bx+bw/2,bh,bz+bd/2)})}}addRectFrame(edges,new Vec3(0,0,0),block*2.4,block*2.0,0);return{edges,boxes,spawn:new Vec3(-block,30.48,-block),bounds:{min:new Vec3(-size,0,-size),max:new Vec3(size,60,size)}}}
+
+/**************** Wind ****************/
+function makeWind(level,rngSeed){const seed=rngSeed>>>0;let p={speed:0.3,gust:0.0,vertical:0.0,swirl:0.0};if(level==='house')p={speed:0.2,gust:0.2,vertical:0.05,swirl:0.1};if(level==='office')p={speed:0.5,gust:0.4,vertical:0.1,swirl:0.2};if(level==='mall')p={speed:0.8,gust:0.6,vertical:0.35,swirl:0.3};if(level==='stadium')p={speed:1.5,gust:1.2,vertical:0.1,swirl:0.8};if(level==='google')p={speed:1.2,gust:1.5,vertical:0.05,swirl:0.5};const dir0=(()=>{const a=(seed%1000)/1000*TAU;return new Vec3(Math.cos(a),0,Math.sin(a))})();return function windAt(pos,t,override){const o=override||{};const mix={...p,...(o||{})};const f=0.12,ft=0.07;const nx=valNoise3(pos.x*f,pos.y*f,pos.z*f+t*ft,seed+17);const ny=valNoise3(pos.x*f+130,pos.y*f,pos.z*f+t*ft,seed+29);const nz=valNoise3(pos.x*f,pos.y*f+270,pos.z*f+t*ft,seed+71);let v=Vec3.mul(dir0,mix.speed);const swirl=new Vec3(nx,ny*mix.vertical,nz).norm().mul(mix.swirl);v=Vec3.add(v,swirl);const gust=Math.max(0,valNoise3(t*0.15,77,33,seed+999));v=Vec3.add(v,new Vec3(nx,ny,nz).mul(gust*mix.gust));return v}}
+
+/**************** Updrafts ****************/
+function buildUpdrafts(level, rng, bounds){const list=[];const add=(x,z,r,str,h)=>list.push({pos:new Vec3(x,0,z),r,str,h,vanish:false,hideUntil:0});
+  const W=bounds.max.x-bounds.min.x, D=bounds.max.z-bounds.min.z, H=bounds.max.y-bounds.min.y;
+  if(level==='house'||level==='office'){for(let i=0;i<6;i++){add(rng.range(bounds.min.x+2,bounds.max.x-2),rng.range(bounds.min.z+2,bounds.max.z-2),rng.range(0.6,1.1),rng.range(0.6,1.2),bounds.max.y)}}
+  if(level==='mall'){add(0,0,1.6,1.8,bounds.max.y);for(let i=0;i<4;i++){add(rng.range(-10,10),rng.range(-6,6),1.0,1.2,bounds.max.y)}}
+  if(level==='stadium'){add(0,0,4.0,1.6,bounds.max.y);for(let i=0;i<6;i++){const ang=i*TAU/6;add(Math.cos(ang)*10,Math.sin(ang)*6,1.2,1.0,bounds.max.y)}}
+  if(level==='google'){add(0,0,3.0,2.2,bounds.max.y);for(let i=0;i<12;i++){add(rng.range(bounds.min.x+5,bounds.max.x-5),rng.range(bounds.min.z+5,bounds.max.z-5),rng.range(1.0,2.0),rng.range(1.0,2.4),bounds.max.y)}}
+  return list}
+
+/**************** Planes ****************/
+const BASE_PLANES={
+  dart:{ name:'Dart', mass:0.008, wingArea:0.015, CD0:0.05, k:0.06, stall:16*DEG, CLalpha:5.2, control:0.015, damping:0.35, I:0.00003 },
+  glider:{ name:'Glider', mass:0.006, wingArea:0.028, CD0:0.04, k:0.05, stall:18*DEG, CLalpha:5.5, control:0.010, damping:0.28, I:0.00004 },
+  stunt:{ name:'Stunt', mass:0.007, wingArea:0.020, CD0:0.06, k:0.07, stall:20*DEG, CLalpha:5.4, control:0.020, damping:0.33, I:0.000028 },
+  heavy:{ name:'Heavy', mass:0.010, wingArea:0.019, CD0:0.055,k:0.065,stall:15*DEG, CLalpha:5.0, control:0.012, damping:0.40, I:0.00005 },
+  snub:{ name:'Snub Nose', mass:0.0075, wingArea:0.018, CD0:0.052, k:0.062, stall:17*DEG, CLalpha:5.3, control:0.018, damping:0.33, I:0.000032, locked:true, requires:120 },
+  fighter:{ name:'Fighter Jet', mass:0.0065, wingArea:0.017, CD0:0.048, k:0.058, stall:22*DEG, CLalpha:5.8, control:0.028, damping:0.30, I:0.000027, locked:true, requires:600 }
+};
+
+/**************** Simulation ****************/
+class Plane{constructor(params){this.params=params;this.pos=new Vec3(0,1.5,0);this.vel=new Vec3(0,0,0);this.angVel=new Vec3(0,0,0);this.q=new Quat();this.thrown=false;this.lines=this.makeWire(params)}basis(){return{right:this.q.rotate(new Vec3(1,0,0)),up:this.q.rotate(new Vec3(0,1,0)),forward:this.q.rotate(new Vec3(0,0,1))}}makeWire(p){const e=[];const span=0.14,len=0.22,tail=0.06;const noseZ=p.name==='Snub Nose'?len*0.35:len/2;const wingTip=span/2;const pts={nose:new Vec3(0,0,noseZ),tail:new Vec3(0,0,-len/2),left:new Vec3(-wingTip,0,0),right:new Vec3(wingTip,0,0),tailL:new Vec3(-tail/2,0,-len/2),tailR:new Vec3(tail/2,0,-len/2),finT:new Vec3(0,0.05,-len/2+0.025)};const seg=(a,b)=>e.push([a,b]);seg(pts.nose,pts.left);seg(pts.nose,pts.right);seg(pts.left,pts.tail);seg(pts.right,pts.tail);seg(pts.tailL,pts.finT);seg(pts.finT,pts.tailR);seg(pts.tailL,pts.tailR);if(p.name==='Fighter Jet'){ // add canards + tailplanes
+  const c=0.06;seg(new Vec3(-c,0,0.05),new Vec3(-c,0,0.12));seg(new Vec3(c,0,0.05),new Vec3(c,0,0.12));seg(new Vec3(-0.04,0,-0.15),new Vec3(0.04,0,-0.15));}
+return e}worldEdges(){const b=this.basis();const out=[];const T=this.pos;const rotate=p=>new Vec3(b.right.x*p.x+b.up.x*p.y+b.forward.x*p.z,b.right.y*p.x+b.up.y*p.y+b.forward.y*p.z,b.right.z*p.x+b.up.z*p.y+b.forward.z*p.z);for(const[a,bp]of this.lines){const pa=Vec3.add(rotate(a),T),pb=Vec3.add(rotate(bp),T);out.push([pa,pb])}return out}reset(pos,dir,speed){this.pos=pos.clone();this.vel=Vec3.mul(dir.norm(),speed);const z=dir.norm();const up=new Vec3(0,1,0);const x=up.cross(z).norm();const y=z.cross(x).norm();const m00=x.x,m01=y.x,m02=z.x;const m10=x.y,m11=y.y,m12=z.y;const m20=x.z,m21=y.z,m22=z.z;const trace=m00+m11+m22;let q;if(trace>0){const s=Math.sqrt(trace+1.0)*2;q=new Quat((m21-m12)/s,(m02-m20)/s,(m10-m01)/s,0.25*s)}else if((m00>m11)&&(m00>m22)){const s=Math.sqrt(1.0+m00-m11-m22)*2;q=new Quat(0.25*s,(m01+m10)/s,(m02+m20)/s,(m21-m12)/s)}else if(m11>m22){const s=Math.sqrt(1.0+m11-m00-m22)*2;q=new Quat((m01+m10)/s,0.25*s,(m12+m21)/s,(m02-m20)/s)}else{const s=Math.sqrt(1.0+m22-m00-m11)*2;q=new Quat((m02+m20)/s,(m12+m21)/s,0.25*s,(m10-m01)/s)}this.q=q.norm();this.angVel.set(0,0,0);this.thrown=true}step(dt,windFn,input,assist){const P=this.params;const g=new Vec3(0,-9.81,0);const b=this.basis();const wind=windFn(this.pos,tGlobal);const vAir=Vec3.sub(this.vel,wind);const speed=vAir.len();const rho=1.225;const qdyn=0.5*rho*speed*speed;const flowDir=vAir.len()>1e-6?Vec3.mul(vAir,-1/speed):new Vec3(0,0,1);const cosT=clamp(b.forward.dot(flowDir),-1,1);let alpha=Math.acos(cosT);const sign=Math.sign(b.up.dot(flowDir)-b.up.dot(b.forward));alpha*=(sign>=0?1:-1);const ctrlPitch=input.pitch*6*DEG;alpha+=ctrlPitch*0.25;const stall=P.stall;const absA=Math.abs(alpha);let CL=P.CLalpha*alpha;if(absA>stall){const over=absA-stall;CL=P.CLalpha*stall*Math.sign(alpha)*(1/(1+over*12))}const CD=P.CD0+P.k*CL*CL;const liftMag=qdyn*P.wingArea*CL;const dragMag=qdyn*P.wingArea*CD;const liftDir=vAir.len()>1e-6?Vec3.mul(b.right.cross(vAir).cross(vAir).norm(),1):new Vec3(0,1,0);const dragDir=vAir.len()>1e-6?Vec3.mul(vAir,-1/speed):new Vec3(0,0,-1);let F=new Vec3(0,0,0);F=Vec3.add(F,Vec3.mul(liftDir,liftMag));F=Vec3.add(F,Vec3.mul(dragDir,dragMag));F=Vec3.add(F,Vec3.mul(g,P.mass));const acc=Vec3.mul(F,1/P.mass);this.vel.add(Vec3.mul(acc,dt));this.pos.add(Vec3.mul(this.vel,dt));const I=P.I;let Tlocal=new Vec3(input.roll*P.control,input.yaw*P.control*0.8,input.pitch*P.control*1.2);if(assist){ // autolevel when no input
+  const dampToLevel=0.5;Tlocal.x += (-b.up.z)*dampToLevel;Tlocal.y += (-b.right.y)*0.2;Tlocal.z += (-alpha)*0.1;}
+const Tworld=new Vec3(b.right.x*Tlocal.x+b.up.x*Tlocal.y+b.forward.x*Tlocal.z,b.right.y*Tlocal.x+b.up.y*Tlocal.y+b.forward.y*Tlocal.z,b.right.z*Tlocal.x+b.up.z*Tlocal.y+b.forward.z*Tlocal.z);const damp=Vec3.mul(this.angVel,-P.damping);const T=Vec3.add(Tworld,damp);const angAcc=Vec3.mul(T,1/I);this.angVel.add(Vec3.mul(angAcc,dt));const wlen=this.angVel.len();if(wlen>1e-6){const dq=Quat.fromAxisAngle(this.angVel.clone().div(wlen),wlen*dt);this.q=this.q.mul(dq).norm()}this._alpha=alpha;this._speed=speed;this._wind=wind.len()}}
+
+/**************** Camera & draw ****************/
+let canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');function resize(){canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px'}addEventListener('resize',resize);resize();
+const camera={pos:new Vec3(0,2,-6),target:new Vec3(0,1,0),up:new Vec3(0,1,0),fov:70*DEG,near:0.05};
+function getViewBasis(pos,target,up){const z=Vec3.sub(target,pos).norm();const x=up.cross(z).norm();const y=z.cross(x).norm();return{x,y,z}}
+function project(p){const rel=Vec3.sub(p,camera.pos);const basis=getViewBasis(camera.pos,camera.target,camera.up);const cx=rel.dot(basis.x),cy=rel.dot(basis.y),cz=rel.dot(basis.z);if(cz<camera.near)return null;const f=(canvas.height*0.5)/Math.tan(camera.fov*0.5);const sx=canvas.width*0.5+(cx*f/cz);const sy=canvas.height*0.5-(cy*f/cz);return{x:sx,y:sy,z:cz}}
+function drawEdges(edges,color){ctx.strokeStyle=color;ctx.lineWidth=Math.max(1,Math.min(2.5,canvas.height/900));ctx.beginPath();for(const[a,b]of edges){const pa=project(a),pb=project(b);if(!pa||!pb)continue;ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y)}ctx.stroke()}
+function drawUpdrafts(list, now){ctx.save();for(const u of list){if(u.vanish && now<u.hideUntil) continue; // temporarily hidden
+  const base=project(new Vec3(u.pos.x,0,u.pos.z));const top=project(new Vec3(u.pos.x,u.h,u.pos.z));if(!base||!top)continue;const segs=10;for(let i=0;i<segs;i++){const t=i/segs;const y=lerp(base.y,top.y,t);const amp=6*Math.sin((now*0.002)+(t*8));const x=base.x+amp;ctx.strokeStyle='rgba(103,232,249,0.6)';ctx.beginPath();ctx.moveTo(x-6,y);ctx.lineTo(x+6,y+16);ctx.stroke()} }ctx.restore()}
+
+/**************** World state ****************/
+let rng=new RNG('blink-zero');
+let ui={ level:document.getElementById('level'), plane:document.getElementById('plane'), levelDetail:document.getElementById('levelDetail'), seed:document.getElementById('seed'), regen:document.getElementById('regen'), throw:document.getElementById('throw'), throwVal:document.getElementById('throwVal'), windPreset:document.getElementById('windPreset'), assist:document.getElementById('assist'), ghost:document.getElementById('ghost'), launch:document.getElementById('launch'), pause:document.getElementById('pauseBtn'), fps:document.getElementById('fps'), spd:document.getElementById('spd'), aoa:document.getElementById('aoa'), alt:document.getElementById('alt'), wnd:document.getElementById('wind'), pts:document.getElementById('points'), session:document.getElementById('session'), padState:document.getElementById('padState'), control:document.getElementById('controlMode'), unlockInfo:document.getElementById('unlockInfo') };
+ui.throw.addEventListener('input',()=>ui.throwVal.textContent=(+ui.throw.value).toFixed(1)+' m/s');
+
+let scene={edges:[],boxes:[],spawn:new Vec3(0,1.5,0),bounds:{min:new Vec3(-10,0,-10),max:new Vec3(10,5,10)}};let updrafts=[];
+let plane;let windField;let paused=false,tGlobal=0;let score=0, sessionTime=0;const SAVEKEY='paperplane_unlocks_v2';
+let unlocks = JSON.parse(localStorage.getItem(SAVEKEY)||'{}');
+function isUnlocked(key){const req=BASE_PLANES[key].requires;return !req || (unlocks.points||0)>=req}
+function refreshPlaneList(){ui.plane.innerHTML='';for(const key of Object.keys(BASE_PLANES)){const p=BASE_PLANES[key];const opt=document.createElement('option');opt.value=key;opt.textContent=p.name+(p.requires?` — ${isUnlocked(key)?'Unlocked':`Locked (${p.requires} pts)`}`:'');if(p.requires && !isUnlocked(key)){opt.disabled=true;opt.className='locked'}ui.plane.appendChild(opt)}ui.unlockInfo.textContent=`Total pts: ${unlocks.points||0}`}
+
+function rebuild(){rng=new RNG(ui.seed.value||'seed');const L=ui.level.value;let s; if(L==='house')s=buildHouse(rng); if(L==='office')s=buildOffice(rng); if(L==='mall')s=buildMall(rng); if(L==='stadium')s=buildStadium(rng); if(L==='google')s=buildGoogleCity(rng); scene=s;windField=makeWind(L,rng.seed);updrafts=buildUpdrafts(L,rng,scene.bounds);plane=new Plane(BASE_PLANES[ui.plane.value]||BASE_PLANES.dart);plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value);ui.levelDetail.textContent=`edges:${scene.edges.length} boxes:${scene.boxes.length} updrafts:${updrafts.length}`;sessionTime=0}
+
+// Init plane list and world
+refreshPlaneList();ui.plane.value='dart';
+ui.regen.addEventListener('click',rebuild);ui.level.addEventListener('change',rebuild);ui.plane.addEventListener('change',()=>{plane=new Plane(BASE_PLANES[ui.plane.value]);});
+
+/**************** Input: Keyboard & Gamepad ****************/
+const keys={}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.code==='Space'){e.preventDefault();throwPlane()} if(e.key.toLowerCase()==='p'){togglePause()}}); addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
+let gamepadIndex=null;window.addEventListener('gamepadconnected',e=>{gamepadIndex=e.gamepad.index;ui.padState.textContent='gamepad connected';});window.addEventListener('gamepaddisconnected',()=>{gamepadIndex=null;ui.padState.textContent='no gamepad'});
+function readGamepad(){if(gamepadIndex==null)return null;const gp=navigator.getGamepads()[gamepadIndex];if(!gp)return null;const dz=0.18;const ax=(v)=>Math.abs(v)<dz?0:v; // deadzone
+  // Map: left stick X->roll, Y->pitch; right stick X->yaw
+  const pitch=ax(gp.axes[1]||0); const roll=ax(gp.axes[0]||0); const yaw=ax(gp.axes[2]||gp.axes[3]||0); const A=gp.buttons[0]?.pressed; const Start=(gp.buttons[9]?.pressed)||false; return { pitch, roll, yaw, A, Start } }
+function getInput(){const mode=ui.control.value;let fromPad=readGamepad(); if(mode==='gamepad' || (mode==='auto' && fromPad)){ if(fromPad?.Start && !prevPadStart){togglePause()} if(fromPad?.A && !prevPadA){throwPlane()} prevPadStart=!!fromPad?.Start; prevPadA=!!fromPad?.A; return { pitch: fromPad?fromPad.pitch:0, roll: fromPad?fromPad.roll:0, yaw: fromPad?fromPad.yaw:0 } } // keyboard
+  return { pitch:(keys['s']||keys['arrowdown']?1:0)-(keys['w']||keys['arrowup']?1:0), roll:(keys['d']||keys['arrowright']?1:0)-(keys['a']||keys['arrowleft']?1:0), yaw:(keys['e']?1:0)-(keys['q']?1:0) } }
+let prevPadStart=false, prevPadA=false;
+
+/**************** Scoring & Unlocks ****************/
+function addScore(dt){if(!plane.thrown)return; score+=dt; sessionTime+=dt; const total=(unlocks.points||0)+dt; // temp to show
+  // Unlock checks
+  let changed=false; if(!isUnlocked('snub') && total>=BASE_PLANES.snub.requires){unlocks.points=(unlocks.points||0); changed=true; toast(`Unlocked: Snub Nose!`)} if(!isUnlocked('fighter') && total>=BASE_PLANES.fighter.requires){changed=true; toast(`Unlocked: Fighter Jet!`)}
+  // persist softly every 5s
+  saveTimer+=dt; if(saveTimer>5){unlocks.points=(unlocks.points||0)+Math.floor(scoreSavedDelta); localStorage.setItem(SAVEKEY,JSON.stringify(unlocks)); scoreSavedDelta=0; saveTimer=0; refreshPlaneList(); ui.unlockInfo.classList.add('green'); setTimeout(()=>ui.unlockInfo.classList.remove('green'),600)} scoreSavedDelta+=dt; ui.pts.textContent=Math.floor((unlocks.points||0)+scoreSavedDelta); ui.session.textContent=Math.floor(sessionTime);
+}
+let saveTimer=0, scoreSavedDelta=0; function finalizeScore(){ if(scoreSavedDelta>0){unlocks.points=(unlocks.points||0)+Math.floor(scoreSavedDelta); localStorage.setItem(SAVEKEY,JSON.stringify(unlocks)); scoreSavedDelta=0; refreshPlaneList(); }}
+
+/**************** Gameplay helpers ****************/
+function togglePause(){paused=!paused;ui.pause.textContent=paused?'Resume (P / Start)':'Pause (P / Start)'}
+function throwPlane(){plane.reset(scene.spawn.clone(),new Vec3(0,0,1),+ui.throw.value)}
+function collide(){ if(ui.ghost.checked) return false; if(plane.pos.y<scene.bounds.min.y-0.2) return true; for(const b of scene.boxes){ if(pointInBox(plane.pos,b)) return true } return false }
+function pointInBox(p,box){return(p.x>=box.min.x&&p.x<=box.max.x&&p.y>=box.min.y&&p.y<=box.max.y&&p.z>=box.min.z&&p.z<=box.max.z)}
+function applyUpdrafts(pos,t){let add=new Vec3(0,0,0);for(const u of updrafts){if(u.vanish && t<u.hideUntil) continue;const dx=pos.x-u.pos.x,dz=pos.z-u.pos.z;const r=u.r; if(dx*dx+dz*dz<r*r){u.vanish=true;u.hideUntil=t+4; add.y+=u.str; // vertical boost
+      toast('Caught updraft +');}}
+  return add}
+
+/**************** Toast ****************/
+let toastDiv=null;function ensureToast(){if(!toastDiv){toastDiv=document.createElement('div');toastDiv.style.position='fixed';toastDiv.style.left='50%';toastDiv.style.top='14px';toastDiv.style.transform='translateX(-50%)';toastDiv.style.padding='8px 12px';toastDiv.style.background='#0b0f14cc';toastDiv.style.border='1px solid #1f2a3c';toastDiv.style.borderRadius='10px';toastDiv.style.pointerEvents='none';toastDiv.style.transition='opacity .2s';document.body.appendChild(toastDiv)}}
+function toast(msg){ensureToast();toastDiv.textContent=msg;toastDiv.style.opacity='1';setTimeout(()=>toastDiv.style.opacity='0',1200)}
+
+/**************** Loop ****************/
+let last=performance.now(),acc=0;rebuild();setTimeout(()=>throwPlane(),400);
+function frame(now){const dt=(now-last)/1000;last=now;if(!paused){acc+=dt;const step=1/120;while(acc>=step){tGlobal+=step;const inp=getInput(); // wind with updrafts
+    const wind=(pos)=>{const base=windField(pos,tGlobal,windOverride());const up=applyUpdrafts(pos,tGlobal);return Vec3.add(base,up)};plane.step(step,wind,inp,ui.assist.checked);if(collide())plane.thrown=false; // chase cam
+    const b=plane.basis();const follow=Vec3.add(plane.pos,Vec3.mul(b.forward,-3.5));follow.add(Vec3.mul(b.up,1.2));camera.pos=Vec3.add(Vec3.mul(camera.pos,0.9),Vec3.mul(follow,0.1));camera.target=Vec3.add(Vec3.mul(camera.target,0.85),Vec3.mul(plane.pos,0.15));addScore(step);acc-=step}} // render
+  ctx.clearRect(0,0,canvas.width,canvas.height);drawEdges(scene.edges,'#3fb7ff');drawUpdrafts(updrafts,now);drawEdges(plane.worldEdges(),'#86efac');ui.spd.textContent=(plane._speed||0).toFixed(1);ui.aoa.textContent=((plane._alpha||0)/DEG).toFixed(1);ui.alt.textContent=(plane.pos.y).toFixed(1);ui.wnd.textContent=(plane._wind||0).toFixed(1);fpsCounter.tick(now);requestAnimationFrame(frame)}
+function windOverride(){const p=ui.windPreset.value;let o=null;if(p==='calm')o={speed:0.05,gust:0.05,vertical:0.0,swirl:0.05};if(p==='indoor')o={speed:0.25,gust:0.2,vertical:0.05,swirl:0.15};if(p==='drafty')o={speed:0.6,gust:0.5,vertical:0.2,swirl:0.25};if(p==='gusty')o={speed:1.6,gust:1.8,vertical:0.15,swirl:0.7};if(p==='outdoor')o={speed:1.1,gust:1.2,vertical:0.05,swirl:0.5};return o}
+const fpsCounter={buf:new Array(20).fill(0),i:0,tick(t){this.buf[this.i++%this.buf.length]=t;const a=this.buf[(this.i-1+this.buf.length)%this.buf.length];const b=this.buf[this.i%this.buf.length];if(b!==0){const dt=(a-b)/this.buf.length;const fps=(dt>0)?1000/dt:0;document.getElementById('fps').textContent=fps.toFixed(0)}}};
+requestAnimationFrame(frame);
+window.addEventListener('beforeunload',finalizeScore);
+</script>
+</body>
+</html>
