@@ -3,12 +3,25 @@ import { TAU, valNoise3 } from './utils.js';
 
 export function makeWind(level,rngSeed){
   const seed = rngSeed >>> 0;
-  let p={speed:0.3,gust:0.0,vertical:0.0,swirl:0.0};
-  if(level==='house') p={speed:0.2,gust:0.2,vertical:0.05,swirl:0.1};
-  if(level==='office') p={speed:0.5,gust:0.4,vertical:0.1,swirl:0.2};
-  if(level==='mall') p={speed:0.8,gust:0.6,vertical:0.35,swirl:0.3};
-  if(level==='stadium') p={speed:1.5,gust:1.2,vertical:0.1,swirl:0.8};
-  if(level==='google') p={speed:1.2,gust:1.5,vertical:0.05,swirl:0.5};
+  let p={speed:0.3,gust:0.0,vertical:0.0,swirl:0.0,turbulence:0.0};
+  if(level==='house') p={speed:0.2,gust:0.2,vertical:0.05,swirl:0.1,turbulence:0.1};
+  if(level==='office') p={speed:0.5,gust:0.4,vertical:0.1,swirl:0.2,turbulence:0.15};
+  if(level==='mall') p={speed:0.8,gust:0.6,vertical:0.35,swirl:0.3,turbulence:0.2};
+  if(level==='stadium') p={speed:1.5,gust:1.2,vertical:0.1,swirl:0.8,turbulence:0.25};
+  if(level==='google'){
+    p={speed:1.2,gust:1.5,vertical:0.05,swirl:0.5,turbulence:0.3};
+    if(typeof fetch==='function'){
+      const lat=37.422,lon=-122.084;
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
+        .then(r=>r.json())
+        .then(d=>{
+          const ws=((d.current_weather?.windspeed)||0)/3.6;
+          p.speed=ws*0.1;
+          p.gust=ws*0.15;
+        })
+        .catch(()=>{});
+    }
+  }
   const dir0 = (()=>{const a=(seed%1000)/1000*TAU;return new Vec3(Math.cos(a),0,Math.sin(a));})();
   return function windAt(pos,t,override){
     const o=override||{};
@@ -22,16 +35,30 @@ export function makeWind(level,rngSeed){
     v=Vec3.add(v,swirl);
     const gust=Math.max(0,valNoise3(t*0.15,77,33,seed+999));
     v=Vec3.add(v,new Vec3(nx,ny,nz).mul(gust*mix.gust));
+    const hf=1.5,hft=0.5;
+    const hnx=valNoise3(pos.x*hf,pos.y*hf,pos.z*hf+t*hft,seed+191);
+    const hny=valNoise3(pos.x*hf+50,pos.y*hf,pos.z*hf+t*hft,seed+383);
+    const hnz=valNoise3(pos.x*hf,pos.y*hf+80,pos.z*hf+t*hft,seed+771);
+    v=Vec3.add(v,new Vec3(hnx,hny,hnz).mul(mix.turbulence));
     return v;
   };
 }
 
-export function buildUpdrafts(level, rng, bounds){
+export function buildUpdrafts(level, rng, bounds, vents=[]){
   const list=[];
   const add=(x,z,r,str,h)=>list.push({pos:new Vec3(x,0,z),r,str,h,vanish:false,hideUntil:0});
   const W=bounds.max.x-bounds.min.x, D=bounds.max.z-bounds.min.z;
-  if(level==='house'||level==='office'){
-    for(let i=0;i<6;i++) add(rng.range(bounds.min.x+2,bounds.max.x-2),rng.range(bounds.min.z+2,bounds.max.z-2),rng.range(0.6,1.1),rng.range(0.6,1.2),bounds.max.y);
+  if(level==='house'){
+    if(vents.length){
+      for(const v of vents) add(v.x,v.z,rng.range(0.6,1.1),rng.range(0.6,1.2),bounds.max.y);
+    }else{
+      for(let i=0;i<6;i++) add(rng.range(bounds.min.x+2,bounds.max.x-2),rng.range(bounds.min.z+2,bounds.max.z-2),rng.range(0.6,1.1),rng.range(0.6,1.2),bounds.max.y);
+    }
+  }
+  if(level==='office'){
+    for(let i=0;i<3;i++) add(rng.range(bounds.min.x+2,bounds.max.x-2),rng.range(bounds.min.z+2,bounds.max.z-2),0.4,0.8,1.5);
+    for(let i=0;i<2;i++) add(rng.range(bounds.min.x+2,bounds.max.x-2),rng.range(bounds.min.z+2,bounds.max.z-2),0.6,1.0,2.5);
+    add(rng.range(bounds.min.x+2,bounds.max.x-2),rng.range(bounds.min.z+2,bounds.max.z-2),0.8,1.2,bounds.max.y);
   }
   if(level==='mall'){
     add(0,0,1.6,1.8,bounds.max.y);
