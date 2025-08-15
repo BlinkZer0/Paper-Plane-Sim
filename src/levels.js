@@ -25,7 +25,7 @@ function addRing(edges,center,r,z,segments=64){
 }
 
 export function buildHouse(rng){
-  const edges=[],boxes=[];
+  const edges=[],boxes=[],vents=[];
   const rooms=rng.int(3,5);
   const roomW=8,roomH=3,roomD=8;
   const cols=rng.int(2,3);
@@ -40,6 +40,7 @@ export function buildHouse(rng){
       addRectFrame(edges,new Vec3(cx,1.0,cz-roomD/2),1.2,2.1,0);
       const tx=cx+rng.range(-2,2),tz=cz+rng.range(-2,2);
       addBox(edges,new Vec3(tx-0.6,0.7,tz-0.4),new Vec3(tx+0.6,0.78,tz+0.4));
+      vents.push(new Vec3(tx,0,tz));
       for(const dx of[-0.55,0.55])
         for(const dz of[-0.35,0.35])
           addBox(edges,new Vec3(tx+dx-0.05,0,tz+dz-0.05),new Vec3(tx+dx+0.05,0.7,tz+dz+0.05));
@@ -50,7 +51,7 @@ export function buildHouse(rng){
   }
   for(let x=-10;x<=10;x+=2) for(let z=-10;z<=10;z+=2) edges.push([new Vec3(x,3,z),new Vec3(x+2,3,z)]);
   for(let x=-10;x<=10;x+=2) for(let z=-10;z<=10;z+=2) edges.push([new Vec3(x,3,z),new Vec3(x,3,z+2)]);
-  return {edges,boxes,spawn:new Vec3(0,1.5,-rows*roomD*0.6),bounds:{min:new Vec3(-12,0,-12),max:new Vec3(12,4,12)}};
+  return {edges,boxes,vents,spawn:new Vec3(0,1.5,-rows*roomD*0.6),bounds:{min:new Vec3(-12,0,-12),max:new Vec3(12,4,12)}};
 }
 
 export function buildOffice(rng){

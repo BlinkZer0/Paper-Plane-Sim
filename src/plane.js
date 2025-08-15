@@ -3,12 +3,12 @@ import { Quat } from './quat.js';
 import { DEG, clamp } from './utils.js';
 
 export const BASE_PLANES={
-  dart:{ name:'Dart', mass:0.008, wingArea:0.015, CD0:0.05, k:0.06, stall:16*DEG, CLalpha:5.2, control:0.015, damping:0.35, I:0.00003 },
-  glider:{ name:'Glider', mass:0.006, wingArea:0.028, CD0:0.04, k:0.05, stall:18*DEG, CLalpha:5.5, control:0.010, damping:0.28, I:0.00004 },
-  stunt:{ name:'Stunt', mass:0.007, wingArea:0.020, CD0:0.06, k:0.07, stall:20*DEG, CLalpha:5.4, control:0.020, damping:0.33, I:0.000028 },
-  heavy:{ name:'Heavy', mass:0.010, wingArea:0.019, CD0:0.055,k:0.065,stall:15*DEG, CLalpha:5.0, control:0.012, damping:0.40, I:0.00005 },
-  snub:{ name:'Snub Nose', mass:0.0075, wingArea:0.018, CD0:0.052, k:0.062, stall:17*DEG, CLalpha:5.3, control:0.018, damping:0.33, I:0.000032, locked:true, requires:120 },
-  fighter:{ name:'Fighter Jet', mass:0.0065, wingArea:0.017, CD0:0.048, k:0.058, stall:22*DEG, CLalpha:5.8, control:0.028, damping:0.30, I:0.000027, locked:true, requires:600 }
+  dart:{ name:'Dart', mass:0.008, wingArea:0.015, CD0:0.05, k:0.06, stall:16*DEG, CLalpha:5.2, control:0.015, damping:0.35, rollDamp:0.32, yawDamp:0.38, groundEffect:0.8, I:0.00003 },
+  glider:{ name:'Glider', mass:0.006, wingArea:0.028, CD0:0.04, k:0.05, stall:18*DEG, CLalpha:5.5, control:0.010, damping:0.28, rollDamp:0.25, yawDamp:0.30, groundEffect:0.9, I:0.00004 },
+  stunt:{ name:'Stunt', mass:0.007, wingArea:0.020, CD0:0.06, k:0.07, stall:20*DEG, CLalpha:5.4, control:0.020, damping:0.33, rollDamp:0.30, yawDamp:0.36, groundEffect:0.7, I:0.000028 },
+  heavy:{ name:'Heavy', mass:0.010, wingArea:0.019, CD0:0.055,k:0.065,stall:15*DEG, CLalpha:5.0, control:0.012, damping:0.40, rollDamp:0.38, yawDamp:0.45, groundEffect:0.6, I:0.00005 },
+  snub:{ name:'Snub Nose', mass:0.0075, wingArea:0.018, CD0:0.052, k:0.062, stall:17*DEG, CLalpha:5.3, control:0.018, damping:0.33, rollDamp:0.30, yawDamp:0.37, groundEffect:0.75, I:0.000032, locked:true, requires:120 },
+  fighter:{ name:'Fighter Jet', mass:0.0065, wingArea:0.017, CD0:0.048, k:0.058, stall:22*DEG, CLalpha:5.8, control:0.028, damping:0.30, rollDamp:0.28, yawDamp:0.34, groundEffect:0.8, I:0.000027, locked:true, requires:600 }
 };
 
 export const BASE_MATERIALS={
@@ -105,7 +105,8 @@ export class Plane{
     let CL=P.CLalpha*alpha;
     if(absA>stall){const over=absA-stall;CL=P.CLalpha*stall*Math.sign(alpha)*(1/(1+over*12));}
     const CD=P.CD0+P.k*CL*CL;
-    const liftMag=qdyn*P.wingArea*CL;
+    const ge=1+P.groundEffect*clamp(1-this.pos.y/2,0,1);
+    const liftMag=qdyn*P.wingArea*CL*ge;
     const dragMag=qdyn*P.wingArea*CD;
     const liftDir=vAir.len()>1e-6?Vec3.mul(b.right.cross(vAir).cross(vAir).norm(),1):new Vec3(0,1,0);
     const dragDir=vAir.len()>1e-6?Vec3.mul(vAir,-1/speed):new Vec3(0,0,-1);
@@ -128,7 +129,10 @@ export class Plane{
       b.right.x*Tlocal.x+b.up.x*Tlocal.y+b.forward.x*Tlocal.z,
       b.right.y*Tlocal.x+b.up.y*Tlocal.y+b.forward.y*Tlocal.z,
       b.right.z*Tlocal.x+b.up.z*Tlocal.y+b.forward.z*Tlocal.z);
-    const damp=Vec3.mul(this.angVel,-P.damping);
+    const damp=new Vec3(
+      -this.angVel.x*(P.rollDamp??P.damping),
+      -this.angVel.y*(P.yawDamp??P.damping),
+      -this.angVel.z*P.damping);
     const T=Vec3.add(Tworld,damp);
     const angAcc=Vec3.mul(T,1/I);
     this.angVel.add(Vec3.mul(angAcc,dt));
