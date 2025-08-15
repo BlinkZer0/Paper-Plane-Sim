@@ -1,4 +1,5 @@
 import { audioReady, effects } from './loader.js';
+import { playCollisionBurst } from './synth.js';
 
 const collisionEffects = {
   dart: 'collision-dart',
@@ -32,6 +33,7 @@ function playCollision(planeKey) {
   if (name) {
     playEffect(name);
   }
+  playCollisionBurst(planeKey);
 }
 
 function playUpdraft() {

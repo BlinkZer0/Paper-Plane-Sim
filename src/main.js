@@ -7,6 +7,7 @@ import { Quat } from './quat.js';
 import { playRandomTrack, stopTrack, setTrackInfo } from './audio/background.js';
 import { tracks, effects, audioReady } from './audio/loader.js';
 import { playThrow, playCollision, playUpdraft } from './audio/controller.js';
+import { initSynth, createWind } from './audio/synth.js';
 
 /**************** Camera & draw ****************/
 let canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');
@@ -112,6 +113,8 @@ function saveAudio(){
   localStorage.setItem(AUDIO_SETTINGS_KEY,JSON.stringify({master:masterVol,music:musicVol,sfx:sfxVol,masterMute:masterMuted,musicMute:musicMuted,sfxMute:sfxMuted}));
 }
 applyVolumes();
+initSynth(audioCtx,sfxGain);
+const windAudio=createWind();
 ui.masterVol.addEventListener('input',()=>{masterVol=+ui.masterVol.value;if(!masterMuted)masterGain.gain.value=masterVol;saveAudio();});
 ui.musicVol.addEventListener('input',()=>{musicVol=+ui.musicVol.value;if(!musicMuted)musicGain.gain.value=musicVol;saveAudio();});
 ui.sfxVol.addEventListener('input',()=>{sfxVol=+ui.sfxVol.value;if(!sfxMuted)sfxGain.gain.value=sfxVol;saveAudio();});
@@ -490,6 +493,7 @@ let last=performance.now(),acc=0;rebuild();setTimeout(()=>throwPlane(),400);
   ui.alt.textContent=(plane.pos.y).toFixed(1);
   ui.wnd.textContent=(plane._wind||0).toFixed(1);
   ui.windDir.textContent=((wDir*180/Math.PI+360)%360).toFixed(0);
+  windAudio.update(plane._wind||0);
   fpsCounter.tick(now);
   requestAnimationFrame(frame);
  }
