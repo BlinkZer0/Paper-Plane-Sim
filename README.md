@@ -16,6 +16,14 @@ Paper Plane Sim is a lightweight, browser-based paper airplane flight simulator.
 
 You can also simply open `paper-plane.html` directly in a browser, though some features may require a server for best results.
 
+## Testing
+Install dependencies and run the test suite with:
+
+```bash
+npm install
+npm test
+```
+
 ## Controls
 - Keyboard: `W/S` pitch, `A/D` roll, `Q/E` yaw, `Space` throw, `P` pause.
 - Gamepad: left stick for pitch/roll, right stick X for yaw, `A` throw, `Start` pause.
