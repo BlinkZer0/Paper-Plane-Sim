@@ -67,6 +67,21 @@
     </select>
   </div>
   <div class="row">
+    <label>Master Vol</label>
+    <input id="masterVol" type="range" min="0" max="1" step="0.01" aria-label="Master volume" />
+    <button id="masterMute" aria-label="Mute or unmute master">Mute</button>
+  </div>
+  <div class="row">
+    <label>Music Vol</label>
+    <input id="musicVol" type="range" min="0" max="1" step="0.01" aria-label="Music volume" />
+    <button id="musicMute" aria-label="Mute or unmute music">Mute</button>
+  </div>
+  <div class="row">
+    <label>SFX Vol</label>
+    <input id="sfxVol" type="range" min="0" max="1" step="0.01" aria-label="Sound effects volume" />
+    <button id="sfxMute" aria-label="Mute or unmute sound effects">Mute</button>
+  </div>
+  <div class="row">
     <label>Assist</label>
     <input id="assist" type="checkbox" checked aria-label="Auto-stabilize" />
     <label for="assist">Auto-stabilize</label>

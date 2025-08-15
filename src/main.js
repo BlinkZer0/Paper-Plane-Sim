@@ -5,7 +5,7 @@ import { makeWind, buildUpdrafts } from './wind.js';
 import { Plane, BASE_PLANES, BASE_MATERIALS } from './plane.js';
 import { Quat } from './quat.js';
 import { playRandomTrack, stopTrack, setTrackInfo } from './audio/background.js';
-import { audioReady } from './audio/loader.js';
+import { tracks, effects, audioReady } from './audio/loader.js';
 import { playThrow, playCollision, playUpdraft } from './audio/controller.js';
 
 /**************** Camera & draw ****************/
@@ -68,9 +68,56 @@ let ui={
   replay:document.getElementById("replayBtn"),
   showGhost:document.getElementById("showGhost"),
   share:document.getElementById("shareBtn"),
-  saveVideo:document.getElementById("saveVideoBtn")
+  saveVideo:document.getElementById("saveVideoBtn"),
+  masterVol:document.getElementById("masterVol"),
+  masterMute:document.getElementById("masterMute"),
+  musicVol:document.getElementById("musicVol"),
+  musicMute:document.getElementById("musicMute"),
+  sfxVol:document.getElementById("sfxVol"),
+  sfxMute:document.getElementById("sfxMute")
 };
 setTrackInfo('');
+const AUDIO_SETTINGS_KEY='paperplane_audio_v1';
+let audioPrefs=JSON.parse(localStorage.getItem(AUDIO_SETTINGS_KEY)||'{}');
+const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+const masterGain=audioCtx.createGain();
+const musicGain=audioCtx.createGain();
+const sfxGain=audioCtx.createGain();
+musicGain.connect(masterGain);
+sfxGain.connect(masterGain);
+masterGain.connect(audioCtx.destination);
+audioReady.then(()=>{
+  tracks.forEach(t=>{audioCtx.createMediaElementSource(t.el).connect(musicGain);});
+  Object.values(effects).forEach(el=>{audioCtx.createMediaElementSource(el).connect(sfxGain);});
+});
+let masterVol=audioPrefs.master??1;
+let musicVol=audioPrefs.music??1;
+let sfxVol=audioPrefs.sfx??1;
+let masterMuted=audioPrefs.masterMute??false;
+let musicMuted=audioPrefs.musicMute??false;
+let sfxMuted=audioPrefs.sfxMute??false;
+ui.masterVol.value=masterVol;
+ui.musicVol.value=musicVol;
+ui.sfxVol.value=sfxVol;
+ui.masterMute.textContent=masterMuted?'Unmute':'Mute';
+ui.musicMute.textContent=musicMuted?'Unmute':'Mute';
+ui.sfxMute.textContent=sfxMuted?'Unmute':'Mute';
+function applyVolumes(){
+  masterGain.gain.value=masterMuted?0:masterVol;
+  musicGain.gain.value=musicMuted?0:musicVol;
+  sfxGain.gain.value=sfxMuted?0:sfxVol;
+  if(masterMuted)audioCtx.suspend();else audioCtx.resume();
+}
+function saveAudio(){
+  localStorage.setItem(AUDIO_SETTINGS_KEY,JSON.stringify({master:masterVol,music:musicVol,sfx:sfxVol,masterMute:masterMuted,musicMute:musicMuted,sfxMute:sfxMuted}));
+}
+applyVolumes();
+ui.masterVol.addEventListener('input',()=>{masterVol=+ui.masterVol.value;if(!masterMuted)masterGain.gain.value=masterVol;saveAudio();});
+ui.musicVol.addEventListener('input',()=>{musicVol=+ui.musicVol.value;if(!musicMuted)musicGain.gain.value=musicVol;saveAudio();});
+ui.sfxVol.addEventListener('input',()=>{sfxVol=+ui.sfxVol.value;if(!sfxMuted)sfxGain.gain.value=sfxVol;saveAudio();});
+ui.masterMute.addEventListener('click',()=>{masterMuted=!masterMuted;ui.masterMute.textContent=masterMuted?'Unmute':'Mute';applyVolumes();saveAudio();});
+ui.musicMute.addEventListener('click',()=>{musicMuted=!musicMuted;ui.musicMute.textContent=musicMuted?'Unmute':'Mute';applyVolumes();saveAudio();});
+ui.sfxMute.addEventListener('click',()=>{sfxMuted=!sfxMuted;ui.sfxMute.textContent=sfxMuted?'Unmute':'Mute';applyVolumes();saveAudio();});
 ui.throw.addEventListener('input',()=>ui.throwVal.textContent=(+ui.throw.value).toFixed(1)+' m/s');ui.throw.addEventListener('change',()=>focusCanvas());
 const TUTORIAL_KEY='paperplane_tutorial_v1';
 let tutorialActive=!localStorage.getItem(TUTORIAL_KEY);
