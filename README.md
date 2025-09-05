@@ -1,3 +1,5 @@
+...not working and depreciated...
+
 # Paper Plane Sim
 
 Paper Plane Sim is a lightweight, browser-based paper airplane flight simulator. The single HTML file demonstrates a simple physics model, multiple environments, and unlockable plane designs rendered with a clean wireframe aesthetic.
